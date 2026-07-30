@@ -10,6 +10,12 @@
 - **流畅体验**：锁定 120Hz 高刷新率，页面切换与滚动均做了性能优化（冷启动、滑动、动画全场景稳定不卡顿）。
 - **本地配置**：API Key 仅保存在本机，不依赖任何云端账户。
 
+## 界面展示
+
+| 主界面 | 设置页 | 桌面小组件 |
+|:---:|:---:|:---:|
+| ![主界面](screenshots/main_screen.jpg) | ![设置页](screenshots/settings_screen.jpg) | ![桌面小组件](screenshots/widget.jpg) |
+
 ## 使用方法
 
 1. 在 [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) 获取你的 API Key。

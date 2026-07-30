@@ -18,7 +18,7 @@
 
 ## 应用图标
 
-![应用图标](screenshots/app_icon.png)
+<img src="screenshots/app_icon.png" width="128" alt="应用图标">
 
 ## 使用方法
 

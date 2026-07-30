@@ -16,6 +16,10 @@
 |:---:|:---:|:---:|
 | ![主界面](screenshots/main_screen.jpg) | ![设置页](screenshots/settings_screen.jpg) | ![桌面小组件](screenshots/widget.jpg) |
 
+## 应用图标
+
+![应用图标](screenshots/app_icon.png)
+
 ## 使用方法
 
 1. 在 [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) 获取你的 API Key。

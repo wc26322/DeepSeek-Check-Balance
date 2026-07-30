@@ -12,7 +12,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
         val enabled = context.getSharedPreferences("deepseek_balance", Context.MODE_PRIVATE)
-            .getBoolean(KEY_REALTIME, false)
+            .getBoolean(KEY_REALTIME, true)
         if (!enabled) return
 
         val serviceIntent = Intent(context, WidgetAutoRefreshService::class.java)

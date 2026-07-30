@@ -141,10 +141,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 首次启动：若已开启实时刷新，则拉起前台服务
-        if (prefs.getBoolean("widget_realtime", true)) {
-            ensureNotificationPermissionThenStart()
-        }
     }
 
     private fun ensureNotificationPermissionThenStart() {
@@ -169,6 +165,16 @@ class MainActivity : ComponentActivity() {
         stopService(Intent(this, WidgetAutoRefreshService::class.java))
     }
 
+    /** 检查指定前台服务是否正在运行（用于把 UI 开关状态与服务真实状态对齐） */
+    @Suppress("DEPRECATION")
+    private fun isServiceRunning(serviceClass: Class<*>): Boolean {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        for (service in am.getRunningServices(Int.MAX_VALUE)) {
+            if (serviceClass.name == service.service.className) return true
+        }
+        return false
+    }
+
     override fun onResume() {
         super.onResume()
         // 强制 120Hz：优先用 preferredDisplayModeId 直接指定 120Hz 显示模式（modeId=1），
@@ -191,6 +197,16 @@ class MainActivity : ComponentActivity() {
             Log.w("REFRESH", "锁定120Hz失败: ${e.message}")
         }
         startFpsMonitor()
+
+        // 自愈：实时刷新开关为开、但前台服务因被系统回收而没在运行时，自动拉起。
+        // 放在 onResume 是因为此时 Activity 确定在前台，避免 Android 12+ 在 onCreate 阶段直接
+        // startForegroundService 触发「后台启动前台服务」限制，导致启动被系统抑制。
+        if (prefs.getBoolean("widget_realtime", true)
+            && !isServiceRunning(WidgetAutoRefreshService::class.java)
+        ) {
+            ensureNotificationPermissionThenStart()
+        }
+
         // DecorView 在 setContentView 之后才创建，必须等它就绪再创建 JankStats，否则崩溃
         window.decorView.post {
             if (!::jankStats.isInitialized) {

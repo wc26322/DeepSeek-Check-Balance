@@ -1,0 +1,28 @@
+# Built application files
+*.apk
+*.aar
+*.aab
+
+# Gradle / build output (root and nested, e.g. app/build/)
+.gradle/
+build/
+
+# Local config (local SDK path, etc.) — never commit
+local.properties
+
+# IDE / OS
+*.iml
+.idea/
+.kotlin/
+.DS_Store
+
+# Native build
+.externalNativeBuild/
+.cxx/
+
+# Captures
+/captures
+
+# Local test artifacts (not part of the project)
+ui_s.xml
+deploy.sh

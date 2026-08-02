@@ -1,0 +1,61 @@
+<svg viewBox="0 0 680 650" width="680" height="650" xmlns="http://www.w3.org/2000/svg">
+  <text x="340" y="34" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#222">DeepSeek 余额查询 · 图标方案（鲸鱼 + ¥）</text>
+
+  <!-- A -->
+  <g transform="translate(50,60)">
+    <rect width="240" height="240" rx="54" fill="#4D6BFE"/>
+    <path d="M58 138 Q68 104 116 104 Q172 104 184 132 Q190 146 177 153 Q185 162 179 171 Q158 178 118 175 Q74 173 60 152 Q52 147 58 138 Z" fill="#ffffff"/>
+    <path d="M177 130 Q206 108 214 121 Q200 127 187 138 Z" fill="#ffffff"/>
+    <path d="M177 152 Q206 178 214 162 Q200 154 187 147 Z" fill="#ffffff"/>
+    <circle cx="92" cy="132" r="4.5" fill="#4D6BFE"/>
+    <g fill="#9fc0ff"><circle cx="112" cy="92" r="4"/><circle cx="123" cy="84" r="3"/><circle cx="101" cy="86" r="3"/></g>
+    <g stroke="#ffffff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(120,182) scale(0.6)">
+      <line x1="-38" y1="-46" x2="0" y2="0"/><line x1="38" y1="-46" x2="0" y2="0"/><line x1="0" y1="0" x2="0" y2="52"/><line x1="-36" y1="-10" x2="36" y2="-10"/><line x1="-44" y1="12" x2="44" y2="12"/>
+    </g>
+    <text x="120" y="292" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#444">A · 鲸鱼+¥ 上下</text>
+  </g>
+
+  <!-- B -->
+  <g transform="translate(390,60)">
+    <rect width="240" height="240" rx="54" fill="#4D6BFE"/>
+    <path d="M58 130 Q68 98 116 98 Q172 98 184 126 Q190 140 177 147 Q185 156 179 165 Q158 172 118 169 Q74 167 60 146 Q52 141 58 130 Z" fill="#ffffff"/>
+    <path d="M177 124 Q206 102 214 115 Q200 121 187 132 Z" fill="#ffffff"/>
+    <path d="M177 146 Q206 172 214 156 Q200 148 187 141 Z" fill="#ffffff"/>
+    <circle cx="92" cy="124" r="4.5" fill="#4D6BFE"/>
+    <g fill="#9fc0ff"><circle cx="112" cy="86" r="4"/><circle cx="123" cy="78" r="3"/><circle cx="101" cy="80" r="3"/></g>
+    <circle cx="184" cy="184" r="36" fill="#ffffff"/>
+    <g stroke="#4D6BFE" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(184,184) scale(0.5)">
+      <line x1="-38" y1="-46" x2="0" y2="0"/><line x1="38" y1="-46" x2="0" y2="0"/><line x1="0" y1="0" x2="0" y2="52"/><line x1="-36" y1="-10" x2="36" y2="-10"/><line x1="-44" y1="12" x2="44" y2="12"/>
+    </g>
+    <text x="120" y="292" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#444">B · 鲸鱼+¥ 角标</text>
+  </g>
+
+  <!-- C -->
+  <g transform="translate(50,360)">
+    <rect width="240" height="240" rx="54" fill="#4D6BFE"/>
+    <path d="M58 138 Q68 104 116 104 Q172 104 184 132 Q190 146 177 153 Q185 162 179 171 Q158 178 118 175 Q74 173 60 152 Q52 147 58 138 Z" fill="#ffffff"/>
+    <path d="M177 130 Q206 108 214 121 Q200 127 187 138 Z" fill="#ffffff"/>
+    <path d="M177 152 Q206 178 214 162 Q200 154 187 147 Z" fill="#ffffff"/>
+    <circle cx="92" cy="132" r="4.5" fill="#4D6BFE"/>
+    <g fill="#9fc0ff"><circle cx="112" cy="92" r="4"/><circle cx="123" cy="84" r="3"/><circle cx="101" cy="86" r="3"/></g>
+    <g stroke="#4D6BFE" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(120,138) scale(0.95)">
+      <line x1="-38" y1="-46" x2="0" y2="0"/><line x1="38" y1="-46" x2="0" y2="0"/><line x1="0" y1="0" x2="0" y2="52"/><line x1="-36" y1="-10" x2="36" y2="-10"/><line x1="-44" y1="12" x2="44" y2="12"/>
+    </g>
+    <text x="120" y="292" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#444">C · 鲸鱼含¥</text>
+  </g>
+
+  <!-- D -->
+  <g transform="translate(390,360)">
+    <rect width="240" height="240" rx="54" fill="#3555E0"/>
+    <path d="M48 140 Q58 108 104 108 Q160 108 174 134 Q180 148 167 155 Q175 164 169 173 Q148 180 108 177 Q66 175 52 154 Q44 149 48 140 Z" fill="#ffffff"/>
+    <path d="M167 132 Q196 110 204 123 Q190 129 177 140 Z" fill="#ffffff"/>
+    <path d="M167 154 Q196 180 204 164 Q190 156 177 149 Z" fill="#ffffff"/>
+    <circle cx="82" cy="134" r="4.5" fill="#3555E0"/>
+    <g fill="#a9c0ff"><circle cx="102" cy="96" r="4"/><circle cx="113" cy="88" r="3"/><circle cx="91" cy="90" r="3"/></g>
+    <circle cx="186" cy="116" r="40" fill="none" stroke="#ffffff" stroke-width="6"/>
+    <g stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(186,116) scale(0.55)">
+      <line x1="-38" y1="-46" x2="0" y2="0"/><line x1="38" y1="-46" x2="0" y2="0"/><line x1="0" y1="0" x2="0" y2="52"/><line x1="-36" y1="-10" x2="36" y2="-10"/><line x1="-44" y1="12" x2="44" y2="12"/>
+    </g>
+    <text x="120" y="292" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#444">D · 鲸鱼+硬币</text>
+  </g>
+</svg>

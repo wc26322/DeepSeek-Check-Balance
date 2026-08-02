@@ -27,12 +27,17 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.metrics.performance.JankStats
 import com.deepseek.balance.model.BalanceResponse
+import com.deepseek.balance.model.UsageData
 import com.deepseek.balance.network.ApiClient
+import com.deepseek.balance.network.UsageClient
 import com.deepseek.balance.ui.MainScreen
 import com.deepseek.balance.ui.SettingsScreen
+import com.deepseek.balance.ui.WebLoginScreen
 import com.deepseek.balance.ui.theme.DeepSeekBalanceTheme
 import com.deepseek.balance.widget.BalanceWidgetProvider
 import com.deepseek.balance.widget.WidgetAutoRefreshService
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileWriter
@@ -265,14 +270,22 @@ private fun BalanceAppContent(
     // 导航
     var showSettings by remember { mutableStateOf(false) }
 
+    // 网页一键登录（WebView 覆盖层）
+    var showWebLogin by remember { mutableStateOf(false) }
+
     // 标记当前页面，便于在 Logcat 中区分主界面/设置页的掉帧
     LaunchedEffect(showSettings) {
         onScreenChange(if (showSettings) "settings" else "main")
     }
 
-    // API Key
+    // API Key（官方余额接口鉴权）
     var apiKey by remember {
         mutableStateOf(prefs.getString("api_key", "") ?: "")
+    }
+
+    // 网页令牌（platform.deepseek.com 用量接口鉴权，与 API Key 不同）
+    var webToken by remember {
+        mutableStateOf(prefs.getString("web_token", "") ?: "")
     }
 
     // 余额预警
@@ -297,6 +310,10 @@ private fun BalanceAppContent(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lastQueryTime by remember { mutableStateOf<String?>(null) }
 
+    // 用量数据（网页令牌鉴权）
+    var usage by remember { mutableStateOf<UsageData?>(null) }
+    var usageError by remember { mutableStateOf<String?>(null) }
+
     // 每次进入前台时自动刷新
     var refreshVersion by remember { mutableStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -312,20 +329,70 @@ private fun BalanceAppContent(
 
     suspend fun doRefresh(showErrors: Boolean = true) {
         isLoading = true
-        if (showErrors) errorMessage = null
-        try {
-            val response = ApiClient.getBalance(apiKey)
-            val prevBalance = result?.balanceInfos?.find { it.currency == "CNY" }?.totalBalance
-            val newBalance = response.balanceInfos.find { it.currency == "CNY" }?.totalBalance
-            result = response
+        if (showErrors) {
             errorMessage = null
-            if (prevBalance != newBalance) saveWidgetData(prefs, response)
-            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-            lastQueryTime = sdf.format(Date())
-        } catch (e: com.deepseek.balance.network.ApiException) {
-            if (showErrors) errorMessage = e.message
+            usageError = null
+        }
+        var balanceResp: com.deepseek.balance.model.BalanceResponse? = null
+        var balanceErr: String? = null
+        var usageResp: com.deepseek.balance.model.UsageData? = null
+        var usageErr: String? = null
+        try {
+            coroutineScope {
+                val bj = async {
+                    if (apiKey.isNotBlank()) {
+                        try {
+                            ApiClient.getBalance(apiKey)
+                        } catch (e: Exception) {
+                            e
+                        }
+                    } else {
+                        null
+                    }
+                }
+                val uj = async {
+                    if (webToken.isNotBlank()) {
+                        try {
+                            UsageClient.getUsage(webToken)
+                        } catch (e: Exception) {
+                            e
+                        }
+                    } else {
+                        null
+                    }
+                }
+                val b = bj.await()
+                val u = uj.await()
+                if (b is Exception) balanceErr = b.message ?: "余额查询失败"
+                else if (b is com.deepseek.balance.model.BalanceResponse) balanceResp = b
+                if (u is Exception) usageErr = u.message ?: "用量查询失败"
+                else if (u is com.deepseek.balance.model.UsageData) usageResp = u
+            }
+
+            if (balanceResp != null) {
+                val prev = result?.balanceInfos?.find { it.currency == "CNY" }?.totalBalance
+                val new = balanceResp!!.balanceInfos.find { it.currency == "CNY" }?.totalBalance
+                result = balanceResp
+                if (prev != new) saveWidgetData(prefs, balanceResp!!)
+            }
+            if (balanceErr != null && showErrors) errorMessage = balanceErr
+
+            usage = usageResp
+            if (usageResp != null) usageError = null
+            if (usageErr != null) usageError = usageErr
+            // 同步用量（总/今日 Tokens）到小组件存储
+            if (usageResp != null) {
+                com.deepseek.balance.widget.WidgetRefresh.saveTokens(prefs, usageResp)
+            }
+
+            if (result != null || usage != null) {
+                val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                lastQueryTime = sdf.format(Date())
+            }
         } catch (e: Exception) {
-            if (showErrors) errorMessage = "网络错误: ${e.localizedMessage ?: "未知错误"}"
+            if (showErrors && errorMessage == null && usageError == null) {
+                errorMessage = "网络错误: ${e.localizedMessage ?: "未知错误"}"
+            }
         } finally {
             isLoading = false
         }
@@ -343,6 +410,18 @@ private fun BalanceAppContent(
         scope.launch { doRefresh() }
     }
 
+    // 每日用量「本月/上月/自定义」维度：按日期范围拉取月度接口数据。
+    // 网络/解析异常在此捕获并返回 null，避免在 LaunchedEffect 协程中抛异常导致闪退。
+    val loadRangeDaily: suspend (java.time.LocalDate, java.time.LocalDate) -> List<com.deepseek.balance.model.ModelDailyUsage>? =
+        { start, end ->
+            if (webToken.isBlank()) null
+            else try {
+                UsageClient.getRangeDaily(webToken, start, end)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
     // ============================================================
     // 页面切换：两屏始终在组合树中，通过 graphicsLayer 位移驱动滑动。
     // 设置页在 App 启动时就已预组合，入口动画时无 Composition 开销。
@@ -355,7 +434,10 @@ private fun BalanceAppContent(
     )
 
     // 系统返回键处理
-    BackHandler(enabled = showSettings) {
+    BackHandler(enabled = showWebLogin) {
+        showWebLogin = false
+    }
+    BackHandler(enabled = showSettings && !showWebLogin) {
         showSettings = false
     }
 
@@ -365,64 +447,94 @@ private fun BalanceAppContent(
             .fillMaxSize()
             .clipToBounds(),
     ) {
-        // ---- 主界面 ----
+        // ---- 主界面 + 设置页（滑动切换） ----
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    translationX = -animProgress * size.width.toFloat()
-                },
+                .clipToBounds(),
         ) {
-            MainScreen(
-                apiKey = apiKey,
-                onSettingsClick = { showSettings = true },
-                onQueryClick = onQueryClick,
-                isLoading = isLoading,
-                result = result,
-                errorMessage = errorMessage,
-                lastQueryTime = lastQueryTime,
-                alertEnabled = alertEnabled,
-                alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
-                settingsVisible = showSettings,
-            )
+            // ---- 主界面 ----
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = -animProgress * size.width.toFloat()
+                    },
+            ) {
+                MainScreen(
+                    apiKey = apiKey,
+                    onSettingsClick = { showSettings = true },
+                    onQueryClick = onQueryClick,
+                    isLoading = isLoading,
+                    result = result,
+                    errorMessage = errorMessage,
+                    lastQueryTime = lastQueryTime,
+                    usage = usage,
+                    usageError = usageError,
+                    hasWebToken = webToken.isNotBlank(),
+                    loadRangeDaily = loadRangeDaily,
+                    alertEnabled = alertEnabled,
+                    alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
+                    settingsVisible = showSettings,
+                )
+            }
+            // ---- 设置页 ----
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = (1f - animProgress) * size.width.toFloat()
+                    },
+            ) {
+                SettingsScreen(
+                    apiKey = apiKey,
+                    onApiKeyChange = {
+                        apiKey = it
+                        prefs.edit().putString("api_key", it).apply()
+                    },
+                    webToken = webToken,
+                    onWebTokenChange = {
+                        webToken = it
+                        prefs.edit().putString("web_token", it).apply()
+                    },
+                    onWebLoginClick = { showWebLogin = true },
+                    onBackClick = { showSettings = false },
+                    alertEnabled = alertEnabled,
+                    onAlertEnabledChange = {
+                        alertEnabled = it
+                        prefs.edit().putBoolean("alert_enabled", it).apply()
+                    },
+                    alertThreshold = alertThreshold,
+                    onAlertThresholdChange = {
+                        alertThreshold = it
+                        prefs.edit().putString("alert_threshold", it).apply()
+                    },
+                    widgetRealtime = widgetRealtime,
+                    onWidgetRealtimeChange = {
+                        widgetRealtime = it
+                        prefs.edit().putBoolean("widget_realtime", it).apply()
+                        onRealtimeToggle(it)
+                    },
+                    widgetIntervalSec = widgetIntervalSec,
+                    onWidgetIntervalSecChange = {
+                        widgetIntervalSec = it
+                        prefs.edit().putInt("widget_interval_sec", it).apply()
+                        onRealtimeIntervalChange()
+                    },
+                )
+            }
         }
-        // ---- 设置页 ----
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationX = (1f - animProgress) * size.width.toFloat()
+
+        // ---- 网页一键登录（WebView 全屏覆盖层） ----
+        if (showWebLogin) {
+            WebLoginScreen(
+                onTokenObtained = { token ->
+                    webToken = token
+                    prefs.edit().putString("web_token", token).apply()
+                    showWebLogin = false
+                    scope.launch { doRefresh() }
                 },
-        ) {
-            SettingsScreen(
-                apiKey = apiKey,
-                onApiKeyChange = {
-                    apiKey = it
-                    prefs.edit().putString("api_key", it).apply()
-                },
-                onBackClick = { showSettings = false },
-                alertEnabled = alertEnabled,
-                onAlertEnabledChange = {
-                    alertEnabled = it
-                    prefs.edit().putBoolean("alert_enabled", it).apply()
-                },
-                alertThreshold = alertThreshold,
-                onAlertThresholdChange = {
-                    alertThreshold = it
-                    prefs.edit().putString("alert_threshold", it).apply()
-                },
-                widgetRealtime = widgetRealtime,
-                onWidgetRealtimeChange = {
-                    widgetRealtime = it
-                    prefs.edit().putBoolean("widget_realtime", it).apply()
-                    onRealtimeToggle(it)
-                },
-                widgetIntervalSec = widgetIntervalSec,
-                onWidgetIntervalSecChange = {
-                    widgetIntervalSec = it
-                    prefs.edit().putInt("widget_interval_sec", it).apply()
-                    onRealtimeIntervalChange()
-                },
+                onClose = { showWebLogin = false },
             )
         }
     }
@@ -442,7 +554,7 @@ private fun saveWidgetData(
         .putBoolean(BalanceWidgetProvider.KEY_AVAILABLE, response.isAvailable)
         .putString(
             BalanceWidgetProvider.KEY_UPDATE_TIME,
-            java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date()),
+            java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date()),
         )
         .apply()
 }

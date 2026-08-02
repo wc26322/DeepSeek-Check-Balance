@@ -51,6 +51,8 @@ class BalanceWidgetProvider : AppWidgetProvider() {
         const val KEY_TOPPED_UP = "topped_up"
         const val KEY_AVAILABLE = "available"
         const val KEY_UPDATE_TIME = "update_time"
+        const val KEY_TOTAL_TOKENS = "total_tokens"
+        const val KEY_TODAY_TOKENS = "today_tokens"
 
         fun updateWidget(
             context: Context,
@@ -60,20 +62,12 @@ class BalanceWidgetProvider : AppWidgetProvider() {
             val prefs = context.getSharedPreferences("deepseek_balance", Context.MODE_PRIVATE)
             val views = RemoteViews(context.packageName, R.layout.widget_balance)
 
-            // 金额（大号居中）
+            // 金额（居中，看余额即可判断是否可用，不再单独显示状态）
             val balance = prefs.getString(KEY_BALANCE, null)
             if (balance != null) {
                 views.setTextViewText(R.id.widget_balance, "${prefs.getString(KEY_SYMBOL, "¥")}$balance")
-
-                val isAvailable = prefs.getBoolean(KEY_AVAILABLE, true)
-                views.setTextViewText(R.id.widget_status, if (isAvailable) "● 可用" else "● 余额不足")
-                views.setTextColor(R.id.widget_status,
-                    if (isAvailable) 0xFF22C55E.toInt()
-                    else 0xFFEF4444.toInt())
             } else {
                 views.setTextViewText(R.id.widget_balance, "点击查询")
-                views.setTextViewText(R.id.widget_status, "设置 API Key")
-                views.setTextColor(R.id.widget_status, 0xFF94A3B8.toInt())
             }
 
             val updateTime = prefs.getString(KEY_UPDATE_TIME, null)
@@ -83,7 +77,13 @@ class BalanceWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_update_time, "")
             }
 
-            // 点击余额打开 App
+            // 总 / 今日 Tokens（用量数据，需网页令牌；紧凑单位，标签已在布局中）
+            val totalTokens = prefs.getString(KEY_TOTAL_TOKENS, null)
+            val todayTokens = prefs.getString(KEY_TODAY_TOKENS, null)
+            views.setTextViewText(R.id.widget_total_tokens, totalTokens ?: "--")
+            views.setTextViewText(R.id.widget_today_tokens, todayTokens ?: "--")
+
+            // 点击小组件任意处（除刷新按钮）打开 App
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
@@ -91,7 +91,7 @@ class BalanceWidgetProvider : AppWidgetProvider() {
                 context, 0, openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.widget_balance, openPending)
+            views.setOnClickPendingIntent(R.id.widget_root, openPending)
 
             // 点击刷新按钮
             val refreshIntent = Intent(context, BalanceWidgetProvider::class.java).apply {

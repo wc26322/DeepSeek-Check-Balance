@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.deepseek.balance.model.BalanceResponse
+import com.deepseek.balance.model.UsageData
 
 // ============================================================================
 // MainScreen —— 仅负责「状态编排」。
@@ -33,13 +34,18 @@ fun MainScreen(
     result: BalanceResponse?,
     errorMessage: String?,
     lastQueryTime: String?,
+    usage: UsageData?,
+    usageError: String?,
+    hasWebToken: Boolean,
+    loadRangeDaily: suspend (start: java.time.LocalDate, end: java.time.LocalDate) -> List<com.deepseek.balance.model.ModelDailyUsage>? =
+        { _, _ -> null },
     alertEnabled: Boolean = false,
     alertThreshold: Double = 50.0,
     settingsVisible: Boolean = false,
 ) {
     val scrollState = rememberScrollState()
     val hasKey = apiKey.isNotBlank()
-    val hasData = result != null
+    val hasData = result != null || usage != null
 
     val snackbarHostState = remember { SnackbarHostState() }
     var previousLoading by remember { mutableStateOf(isLoading) }
@@ -125,6 +131,16 @@ fun MainScreen(
                 )
             }
 
+            // 用量明细（网页令牌鉴权）
+            UsageSection(
+                usage = usage,
+                usageError = usageError,
+                hasWebToken = hasWebToken,
+                isLoading = isLoading,
+                onSettingsClick = onSettingsClick,
+                loadRangeDaily = loadRangeDaily,
+            )
+
             if (errorMessage != null) {
                 ErrorCard(message = errorMessage)
             }
@@ -150,6 +166,9 @@ private fun MainScreenPreview() {
             result = null,
             errorMessage = null,
             lastQueryTime = null,
+            usage = null,
+            usageError = null,
+            hasWebToken = false,
         )
     }
 }

@@ -1,44 +1,102 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="12dp"
+    android:padding="4dp"
     android:background="@drawable/widget_bg">
 
-    <!-- 顶部标题 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:singleLine="true"
-        android:text="DeepSeek 余额"
-        android:textSize="11sp"
-        android:textColor="#FF64748B"
-        android:letterSpacing="0.04"
-        android:fontFamily="sans-serif-medium"
-        android:includeFontPadding="false" />
-
-    <!-- 余额（大号居中，等宽数字避免刷新时跳动） -->
-    <TextView
-        android:id="@+id/widget_balance"
+    <!-- 三个数据：占满剩余空间并在其中垂直居中 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:gravity="center"
-        android:singleLine="true"
-        android:ellipsize="end"
-        android:text="¥110.00"
-        android:textSize="26sp"
-        android:textColor="#FF1B1B21"
-        android:fontFamily="sans-serif-medium"
-        android:textStyle="bold"
-        android:letterSpacing="-0.02"
-        android:fontFeatureSettings="tnum"
-        android:includeFontPadding="false" />
+        android:orientation="vertical"
+        android:gravity="center">
 
-    <!-- 底部：状态 + 时间 + 刷新 -->
+        <!-- 余额 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:text="余额"
+            android:textSize="10sp"
+            android:textColor="#FF94A3B8"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/widget_balance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:text="¥110.00"
+            android:textSize="22sp"
+            android:textColor="#FF1B1B21"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false" />
+
+        <!-- 总 Tokens -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:text="总Tokens"
+            android:textSize="10sp"
+            android:textColor="#FF94A3B8"
+            android:paddingTop="8dp"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/widget_total_tokens"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:text="--"
+            android:textSize="22sp"
+            android:textColor="#FF0EA5E9"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false" />
+
+        <!-- 今日 Tokens -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:text="最新UTC+0日Tokens"
+            android:textSize="9sp"
+            android:textColor="#FF94A3B8"
+            android:paddingTop="8dp"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/widget_today_tokens"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:text="--"
+            android:textSize="22sp"
+            android:textColor="#FF22C55E"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:fontFeatureSettings="tnum"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <!-- 底部：更新时间（中，精确到秒） + 刷新（右），固定在最底部 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -46,33 +104,37 @@
         android:gravity="center_vertical">
 
         <TextView
-            android:id="@+id/widget_status"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:singleLine="true"
-            android:text="可用"
-            android:textSize="11sp"
-            android:textColor="#FF22C55E"
-            android:includeFontPadding="false" />
+            android:layout_weight="1" />
 
         <TextView
             android:id="@+id/widget_update_time"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
             android:singleLine="true"
             android:textSize="10sp"
             android:textColor="#FF94A3B8"
-            android:layout_marginEnd="6dp"
             android:includeFontPadding="false" />
 
-        <ImageView
-            android:id="@+id/widget_refresh"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@android:drawable/ic_menu_rotate"
-            android:contentDescription="刷新"
-            android:padding="4dp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="end">
+
+            <ImageView
+                android:id="@+id/widget_refresh"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:src="@android:drawable/ic_menu_rotate"
+                android:contentDescription="刷新"
+                android:padding="3dp"
+                android:layout_marginEnd="2dp" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

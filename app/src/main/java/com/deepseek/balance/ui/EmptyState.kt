@@ -1,7 +1,6 @@
 package com.deepseek.balance.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -16,12 +15,13 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
     Spacer(modifier = Modifier.height(24.dp))
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),

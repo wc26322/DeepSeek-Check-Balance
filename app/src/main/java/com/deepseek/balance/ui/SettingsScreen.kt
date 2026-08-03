@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -109,15 +108,15 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer(), // 缓存整卡(含阴影)为硬件层，滚动时只平移、不重绘阴影模糊
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp), content = content)
     }
@@ -165,7 +164,7 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
                     )
                 }
             },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.medium,
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
@@ -179,6 +178,15 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
             else
                 MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (apiKey.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            TextButton(
+                onClick = { onApiKeyChange("") },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("清除 API Key")
+            }
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "API Key 仅保存在本机，不会上传到任何第三方服务器。",
@@ -240,7 +248,7 @@ private fun WebTokenCard(
                     )
                 }
             },
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.medium,
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
@@ -259,7 +267,7 @@ private fun WebTokenCard(
         Button(
             onClick = onWebLoginClick,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.medium,
         ) {
             Text("网页一键登录（免手动复制）")
         }
@@ -357,7 +365,7 @@ private fun AlertCard(
                         Text("元", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = MaterialTheme.shapes.small,
                 supportingText = { Text("范围：¥1 ~ ¥5,000,000") },
             )
         }
@@ -437,7 +445,7 @@ private fun RealtimeCard(
                         .menuAnchor()
                         .fillMaxWidth(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = intervalExpanded) },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.small,
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                 )
                 ExposedDropdownMenu(

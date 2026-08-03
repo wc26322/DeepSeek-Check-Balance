@@ -8,7 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -18,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -93,7 +93,7 @@ fun MainScreen(
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
                     snackbarData = data,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 )
@@ -111,7 +111,7 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             indicator = {
-                // 官方 LoadingIndicator（Material3 1.5.0-alpha Expressive 风格）：跟随下拉位移出现
+                // Expressive 官方 LoadingIndicator：下拉时出现箭头 + 容器，松手后转圈，自带位移/缩放动画
                 PullToRefreshDefaults.LoadingIndicator(
                     state = pullState,
                     isRefreshing = isLoading,
@@ -164,6 +164,14 @@ fun MainScreen(
                     )
                 }
 
+                // API Key 提示卡（未填写时显示，常驻不随刷新消失）
+                if (!hasData) {
+                    EmptyState(
+                        hasKey = hasKey,
+                        onSettingsClick = onSettingsClick,
+                    )
+                }
+
                 // 用量明细（网页令牌鉴权）
                 UsageSection(
                     usage = usage,
@@ -177,13 +185,6 @@ fun MainScreen(
 
                 if (errorMessage != null) {
                     ErrorCard(message = errorMessage)
-                }
-
-                if (!hasData) {
-                    EmptyState(
-                        hasKey = hasKey,
-                        onSettingsClick = onSettingsClick,
-                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

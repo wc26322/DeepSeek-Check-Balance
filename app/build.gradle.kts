@@ -1,12 +1,12 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // AGP 9 内置 Kotlin 支持，无需 org.jetbrains.kotlin.android
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.deepseek.balance"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.deepseek.balance"
@@ -61,8 +61,10 @@ dependencies {
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2026.02.01")
     implementation(composeBom)
-    // Material3 alpha（最早包含 PullToRefreshDefaults.LoadingIndicator 的版本），显式覆盖 BOM 的稳定版
-    implementation("androidx.compose.material3:material3:1.5.0-alpha17")
+    // Material3 Expressive（最新 alpha：新形状语言 + MotionScheme + 新组件形态）
+    implementation("androidx.compose.material3:material3:1.5.0-alpha25")
+    // Expressive 形状系统依赖（RoundedPolygon 等有机形状）
+    implementation("androidx.graphics:graphics-shapes:1.0.1")
 
     // Core
     implementation("androidx.core:core-ktx:1.12.0")

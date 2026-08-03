@@ -1,8 +1,14 @@
 package com.deepseek.balance.ui.theme
 
 import android.os.Build
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -13,9 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // ===== 自定义后备配色方案（基于 DeepSeek 蓝 #3A5BDF） =====
+// 含新版 Material3 surfaceContainer 分层 token（surfaceDim/Low/Lowest/High/Highest/Bright）
 private val LightColors = lightColorScheme(
     primary = Color(0xFF3A5BDF),
     onPrimary = Color(0xFFFFFFFF),
@@ -35,6 +43,13 @@ private val LightColors = lightColorScheme(
     onSurface = Color(0xFF1B1B21),
     surfaceVariant = Color(0xFFE2E1EC),
     onSurfaceVariant = Color(0xFF45464F),
+    surfaceDim = Color(0xFFDBD8E3),
+    surfaceBright = Color(0xFFFBF8FF),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF5F2FC),
+    surfaceContainer = Color(0xFFEFECF6),
+    surfaceContainerHigh = Color(0xFFE9E6F1),
+    surfaceContainerHighest = Color(0xFFE3E1EB),
     outline = Color(0xFF767680),
     outlineVariant = Color(0xFFC6C5D0),
     error = Color(0xFFBA1A1A),
@@ -62,12 +77,28 @@ private val DarkColors = darkColorScheme(
     onSurface = Color(0xFFE4E1E8),
     surfaceVariant = Color(0xFF2B2B33),
     onSurfaceVariant = Color(0xFFC6C5D0),
+    surfaceDim = Color(0xFF131318),
+    surfaceBright = Color(0xFF393840),
+    surfaceContainerLowest = Color(0xFF0E0E13),
+    surfaceContainerLow = Color(0xFF1B1B21),
+    surfaceContainer = Color(0xFF1F1F26),
+    surfaceContainerHigh = Color(0xFF2A2931),
+    surfaceContainerHighest = Color(0xFF35343C),
     outline = Color(0xFF908F99),
     outlineVariant = Color(0xFF45464F),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
+)
+
+// Material3 形状体系：小/中/大/特大圆角，组件统一引用 MaterialTheme.shapes
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),   // 状态条/小标签
+    small = RoundedCornerShape(8.dp),        // 输入框/下拉框
+    medium = RoundedCornerShape(12.dp),      // 中按钮/选中态
+    large = RoundedCornerShape(16.dp),       // 卡片/对话框
+    extraLarge = RoundedCornerShape(24.dp),  // 主卡片/大圆角卡片
 )
 
 private val AppTypography = Typography(
@@ -106,9 +137,27 @@ fun DeepSeekBalanceTheme(
         else -> LightColors
     }
 
-    MaterialTheme(
+    // Material 3 Expressive：MaterialExpressiveTheme 自动启用 Expressive 组件形态（形状/动效）。
+    // 动效用「快速版」MotionScheme：形状保持 Expressive 有机风格，
+    // 但过渡动画用短时 tween 替代 Expressive 的长衰减弹簧（弹簧会让菜单收起动画拖很久，
+    // 期间 Popup 仍拦截点击，导致下拉后要等动画结束才能再操作）
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,
+        motionScheme = FastMotionScheme,
         content = content,
     )
+}
+
+/** 快速版 MotionScheme：保留 Expressive 形状语言，动效全部用短时 tween */
+private object FastMotionScheme : MotionScheme {
+    private fun <T> fast(): FiniteAnimationSpec<T> = tween(durationMillis = 120)
+    private fun <T> normal(): FiniteAnimationSpec<T> = tween(durationMillis = 180)
+    override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> = normal()
+    override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> = fast()
+    override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> = tween(durationMillis = 260)
+    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> = normal()
+    override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> = fast()
+    override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> = tween(durationMillis = 260)
 }

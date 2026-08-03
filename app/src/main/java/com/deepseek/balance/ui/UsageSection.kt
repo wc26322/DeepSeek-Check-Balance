@@ -13,9 +13,13 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -35,6 +39,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
@@ -44,6 +49,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -152,12 +158,13 @@ internal fun UsageSection(
 
 @Composable
 private fun NoTokenHint(onSettingsClick: () -> Unit) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -191,12 +198,13 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
 
 @Composable
 private fun UsageLoadingCard() {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Row(
             modifier = Modifier.padding(20.dp),
@@ -221,11 +229,11 @@ private fun UsageLoadingCard() {
 private fun UsageOverviewCard(usage: UsageData) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -294,13 +302,13 @@ private fun UsageListCard(
     rows: List<UsageRowData>,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -389,7 +397,7 @@ private fun TokensRow(value: String) {
 private fun StatChip(label: String, value: String) {
     Surface(
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -525,13 +533,13 @@ private fun DailyUsageCard(
         displayDaily.lastOrNull()?.let { selectedDate = it.date }
     }
 
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -540,12 +548,12 @@ private fun DailyUsageCard(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(10.dp))
-            // 时间维度 + 模型选择放在同一行，合理分配宽度（时间范围窄、模型名宽）
+            // 时间维度 + 模型选择并排，奶糖胶囊锚点（浅蓝渐变底 + 渐变圆箭头）
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // 时间维度下拉框（紧凑锚点，省水平空间以并排放下两个字段）
+                // 时间维度下拉框
                 var menuExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
                     expanded = menuExpanded,
@@ -560,12 +568,15 @@ private fun DailyUsageCard(
                         value = dimension.label,
                         expanded = menuExpanded,
                         modifier = Modifier
-                            .menuAnchor()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
+                        shape = RoundedCornerShape(16.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)),
                     ) {
                         listOf(
                             DailyDimension.Recent7,
@@ -574,8 +585,9 @@ private fun DailyUsageCard(
                             DailyDimension.LastMonth,
                             DailyDimension.Custom,
                         ).forEach { d ->
-                            DropdownMenuItem(
-                                text = { Text(d.label) },
+                            CandyDropdownMenuItem(
+                                text = d.label,
+                                selected = dimension == d,
                                 onClick = {
                                     menuExpanded = false
                                     if (d == DailyDimension.Custom) {
@@ -601,16 +613,22 @@ private fun DailyUsageCard(
                             value = current?.model ?: "",
                             expanded = modelMenuExpanded,
                             modifier = Modifier
-                                .menuAnchor()
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth(),
                         )
                         ExposedDropdownMenu(
                             expanded = modelMenuExpanded,
                             onDismissRequest = { modelMenuExpanded = false },
+                            // 宽度按内容自适应（最长模型名），上限 300dp，避免撑满卡片
+                            modifier = Modifier.widthIn(min = 160.dp, max = 300.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)),
                         ) {
                             displayModels.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m.model) },
+                                CandyDropdownMenuItem(
+                                    text = m.model,
+                                    selected = selectedModel == m.model,
                                     onClick = {
                                         selectedModel = m.model
                                         modelMenuExpanded = false
@@ -694,7 +712,7 @@ private fun DailyUsageCard(
     }
 }
 
-/** 紧凑版下拉框锚点：仿输入框外观（label + 值 + 箭头），比 OutlinedTextField 省水平空间，便于两个下拉框并排 */
+/** 紧凑版下拉框锚点：奶糖胶囊（浅蓝渐变底 + 渐变圆箭头），12dp 圆角与卡片呼应 */
 @Composable
 private fun CompactDropdownAnchor(
     label: String,
@@ -706,24 +724,34 @@ private fun CompactDropdownAnchor(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = tween(150),
     )
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    val primary = MaterialTheme.colorScheme.primary
+    // 深色调 = 主题色向黑色收敛 18%（RGB 混合）
+    val deep = Color(
+        red = primary.red * 0.82f,
+        green = primary.green * 0.82f,
+        blue = primary.blue * 0.82f,
+    )
+    val pillBrush = Brush.linearGradient(
+        colors = listOf(primary.copy(alpha = 0.16f), primary.copy(alpha = 0.07f)),
+    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(pillBrush)
+            .border(1.5.dp, primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 12.dp),
+                .height(52.dp)
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 )
                 Text(
                     text = value,
@@ -732,16 +760,65 @@ private fun CompactDropdownAnchor(
                     maxLines = 1,
                 )
             }
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = null,
+            // 渐变圆箭头（旋转 180° 表示展开）
+            Box(
                 modifier = Modifier
                     .size(20.dp)
+                    .background(Brush.linearGradient(listOf(primary, deep)), CircleShape)
                     .graphicsLayer { rotationZ = arrowAngle },
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = Color.White,
+                )
+            }
         }
     }
+}
+
+/** 奶糖风格菜单项：选中项浅蓝圆角底 + 主题色文字 */
+@Composable
+private fun CandyDropdownMenuItem(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    DropdownMenuItem(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        colors = MenuDefaults.itemColors(
+            textColor = if (selected) primary else MaterialTheme.colorScheme.onSurface,
+        ),
+        text = {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        modifier = Modifier
+            .padding(horizontal = 6.dp)
+            .then(
+                if (selected) {
+                    Modifier.background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                primary.copy(alpha = 0.16f),
+                                primary.copy(alpha = 0.07f),
+                            ),
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                } else {
+                    Modifier
+                }
+            ),
+    )
 }
 
 /** 自定义日期范围选择对话框：开始/结束两个日期字段，各自点击弹出单日日历，间隔 ≤31 天 */
@@ -766,8 +843,8 @@ private fun CustomRangePicker(
     ) {
         Surface(
             modifier = Modifier.width(360.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = 6.dp,
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -835,42 +912,65 @@ private fun CustomRangePicker(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateField(label: String, value: String, onClick: () -> Unit) {
-    // 整个字段就是一个可点击 Surface：外观模拟输入框（边框+标签+数值+下拉箭头），
-    // 波纹严格沿 shape 的 12dp 圆角绘制、贴合方框，也不存在输入框吞点击的问题。
+    // 整个字段就是一个可点击胶囊：与下拉框同款奶糖风格（浅色渐变底 + 渐变圆箭头）
+    val primary = MaterialTheme.colorScheme.primary
+    val deep = Color(
+        red = primary.red * 0.82f,
+        green = primary.green * 0.82f,
+        blue = primary.blue * 0.82f,
+    )
+    val pillBrush = Brush.linearGradient(
+        colors = listOf(primary.copy(alpha = 0.16f), primary.copy(alpha = 0.07f)),
+    )
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0f),
+        border = BorderStroke(1.5.dp, primary.copy(alpha = 0.35f)),
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .clip(RoundedCornerShape(12.dp))
+                .background(pillBrush),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = value.ifEmpty { "请选择" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (value.isEmpty())
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    else
-                        MaterialTheme.colorScheme.onSurface,
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    )
+                    Text(
+                        text = value.ifEmpty { "请选择" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (value.isEmpty())
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        else
+                            MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .background(Brush.linearGradient(listOf(primary, deep)), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = Color.White,
+                    )
+                }
             }
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -907,8 +1007,8 @@ private fun SingleDateDialog(
     ) {
         Surface(
             modifier = Modifier.width(360.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = 6.dp,
         ) {
             Column {
@@ -940,7 +1040,7 @@ private fun LegendItem(color: Color, label: String) {
         Box(
             modifier = Modifier
                 .size(10.dp)
-                .clip(RoundedCornerShape(3.dp))
+                .clip(MaterialTheme.shapes.small)
                 .background(color),
         )
         Spacer(modifier = Modifier.width(5.dp))
@@ -1139,12 +1239,13 @@ private fun formatAxis(v: Long): String = when {
 /** 选中天的明细面板：显示在柱状图下方 */
 @Composable
 private fun DayDetail(day: DailyUsage, modifier: Modifier = Modifier) {
-    Card(
+    ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -1183,7 +1284,7 @@ private fun DetailItem(label: String, value: Long, color: Color) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(MaterialTheme.shapes.small)
                     .background(color),
             )
             Spacer(modifier = Modifier.width(4.dp))

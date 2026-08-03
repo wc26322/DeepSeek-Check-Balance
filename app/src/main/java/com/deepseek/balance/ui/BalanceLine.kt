@@ -10,7 +10,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-internal fun BalanceLine(label: String, value: String, color: Color) {
+internal fun BalanceLine(
+    label: String,
+    symbol: String,
+    amountTarget: Double,
+    restartKey: Int,
+    color: Color,
+) {
     Column {
         Text(
             text = label,
@@ -18,13 +24,24 @@ internal fun BalanceLine(label: String, value: String, color: Color) {
             color = color.copy(alpha = 0.65f),
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.Medium,
-                fontFeatureSettings = "tnum",
-            ),
-            color = color,
-        )
+        Row {
+            Text(
+                text = symbol,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontFeatureSettings = "tnum",
+                ),
+                color = color,
+            )
+            AnimatedAmount(
+                target = amountTarget,
+                restartKey = restartKey,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontFeatureSettings = "tnum",
+                ),
+                color = color,
+            )
+        }
     }
 }

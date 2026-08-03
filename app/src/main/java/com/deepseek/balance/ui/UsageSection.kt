@@ -1,5 +1,9 @@
 package com.deepseek.balance.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -18,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,6 +37,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -73,6 +79,7 @@ internal fun UsageSection(
     onSettingsClick: () -> Unit = {},
     loadRangeDaily: suspend (start: java.time.LocalDate, end: java.time.LocalDate) -> List<ModelDailyUsage>? =
         { _, _ -> null },
+    refreshCount: Int = 0,
 ) {
     Spacer(modifier = Modifier.height(24.dp))
 
@@ -105,6 +112,7 @@ internal fun UsageSection(
             DailyUsageCard(
                 recentDaily = usage.byModelDaily,
                 loadRangeDaily = loadRangeDaily,
+                refreshCount = refreshCount,
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -428,9 +436,14 @@ private val DailyDimension.label: String
 private fun DailyUsageCard(
     recentDaily: List<ModelDailyUsage>,
     loadRangeDaily: suspend (start: LocalDate, end: LocalDate) -> List<ModelDailyUsage>?,
+    refreshCount: Int = 0,
 ) {
     var dimension by remember { mutableStateOf<DailyDimension>(DailyDimension.Recent7) }
+    // 月度数据缓存：预拉取本月/上月，切换维度时即时显示（无加载等待、无旧数据动画）
+    val monthlyCache = remember { mutableStateMapOf<DailyDimension, List<ModelDailyUsage>>() }
+    // 最近一次拉取的月度数据（自定义等未预拉维度切换时作静态占位）
     var fetchedDaily by remember { mutableStateOf<List<ModelDailyUsage>?>(null) }
+    var fetchedFor by remember { mutableStateOf<DailyDimension?>(null) }  // fetchedDaily 对应的维度（自定义维度动画触发判断）
     var loadFailed by remember { mutableStateOf(false) }
     var selectedModel by remember { mutableStateOf(recentDaily.firstOrNull()?.model ?: "") }
     var selectedDate by remember { mutableStateOf<String?>(null) }
@@ -441,16 +454,38 @@ private fun DailyUsageCard(
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
 
-    // 当前展示的每日数据：近7/30 天用已有数据本地切片；本月/上月/自定义用拉取的月度数据
+    // 当前展示的每日数据：近7/30 天用已有数据本地切片；
+    // 本月/上月优先用预拉缓存（切换即时显示），自定义等无缓存维度用最近拉取数据静态占位
     val displayModels: List<ModelDailyUsage> = when (dimension) {
         DailyDimension.Recent7 -> recentDaily.map { it.copy(daily = it.daily.takeLast(7)) }
         DailyDimension.Recent30 -> recentDaily.map { it.copy(daily = it.daily.takeLast(30)) }
-        else -> fetchedDaily ?: emptyList()
+        else -> monthlyCache[dimension] ?: fetchedDaily ?: emptyList()
+    }
+
+    // 预拉取本月/上月：进入卡片即后台拉取，切换维度时直接命中缓存，无加载等待
+    LaunchedEffect(recentDaily) {
+        listOf(DailyDimension.ThisMonth, DailyDimension.LastMonth).forEach { d ->
+            if (monthlyCache[d] == null) {
+                val range = when (d) {
+                    DailyDimension.ThisMonth -> {
+                        val n = LocalDate.now()
+                        n.withDayOfMonth(1) to n.withDayOfMonth(n.lengthOfMonth())
+                    }
+                    else -> {
+                        val p = LocalDate.now().minusMonths(1)
+                        p.withDayOfMonth(1) to p.withDayOfMonth(p.lengthOfMonth())
+                    }
+                }
+                try {
+                    loadRangeDaily(range.first, range.second)?.let { monthlyCache[d] = it }
+                } catch (_: Exception) { }
+            }
+        }
     }
     val current = displayModels.find { it.model == selectedModel } ?: displayModels.firstOrNull()
     val displayDaily = current?.daily ?: emptyList()
 
-    // 本月/上月/自定义：按日期范围拉取月度接口数据
+    // 本月/上月/自定义：缓存未命中时按日期范围拉取月度接口数据（本月/上月通常已被预拉取命中）
     LaunchedEffect(dimension, customRange) {
         val range = when (dimension) {
             DailyDimension.ThisMonth -> {
@@ -464,19 +499,26 @@ private fun DailyUsageCard(
             DailyDimension.Custom -> customRange
             else -> null
         }
-        if (range != null) {
+        if (range != null && monthlyCache[dimension] == null) {
             loadFailed = false
             try {
-                fetchedDaily = loadRangeDaily(range.first, range.second)
-                loadFailed = fetchedDaily == null
+                val data = loadRangeDaily(range.first, range.second)
+                if (data != null) monthlyCache[dimension] = data
+                fetchedDaily = data
+                loadFailed = data == null
+                fetchedFor = dimension
             } catch (e: Exception) {
                 fetchedDaily = null
                 loadFailed = true
+                fetchedFor = null
             }
+        } else {
+            loadFailed = false
+            fetchedFor = null
         }
     }
     // 切换维度/模型/数据后：模型选择保留有效值，明细默认选中「最后一天」（通常为今天）
-    LaunchedEffect(displayModels.firstOrNull()?.model, dimension, fetchedDaily, customRange) {
+    LaunchedEffect(displayModels.firstOrNull()?.model, dimension, monthlyCache[dimension], fetchedDaily, customRange) {
         if (displayModels.isNotEmpty()) {
             selectedModel = displayModels.firstOrNull()?.model ?: selectedModel
         }
@@ -498,51 +540,89 @@ private fun DailyUsageCard(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(10.dp))
-            // 时间维度下拉框
-            var menuExpanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = menuExpanded,
-                onExpandedChange = { menuExpanded = it },
+            // 时间维度 + 模型选择放在同一行，合理分配宽度（时间范围窄、模型名宽）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedTextField(
-                    value = dimension.label,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuExpanded) },
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                )
-                ExposedDropdownMenu(
+                // 时间维度下拉框（紧凑锚点，省水平空间以并排放下两个字段）
+                var menuExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
                     expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
+                    onExpandedChange = { menuExpanded = it },
+                    modifier = if (displayModels.isEmpty())
+                        Modifier.weight(1f)
+                    else
+                        Modifier.weight(0.38f),
                 ) {
-                    listOf(
-                        DailyDimension.Recent7,
-                        DailyDimension.Recent30,
-                        DailyDimension.ThisMonth,
-                        DailyDimension.LastMonth,
-                        DailyDimension.Custom,
-                    ).forEach { d ->
-                        DropdownMenuItem(
-                            text = { Text(d.label) },
-                            onClick = {
-                                menuExpanded = false
-                                if (d == DailyDimension.Custom) {
-                                    showCustomPicker = true
-                                } else {
-                                    dimension = d
-                                }
-                            },
+                    CompactDropdownAnchor(
+                        label = "时间范围",
+                        value = dimension.label,
+                        expanded = menuExpanded,
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        listOf(
+                            DailyDimension.Recent7,
+                            DailyDimension.Recent30,
+                            DailyDimension.ThisMonth,
+                            DailyDimension.LastMonth,
+                            DailyDimension.Custom,
+                        ).forEach { d ->
+                            DropdownMenuItem(
+                                text = { Text(d.label) },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (d == DailyDimension.Custom) {
+                                        showCustomPicker = true
+                                    } else {
+                                        dimension = d
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+                // 模型选择下拉框
+                if (displayModels.isNotEmpty()) {
+                    var modelMenuExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = modelMenuExpanded,
+                        onExpandedChange = { modelMenuExpanded = it },
+                        modifier = Modifier.weight(0.62f),
+                    ) {
+                        CompactDropdownAnchor(
+                            label = "模型",
+                            value = current?.model ?: "",
+                            expanded = modelMenuExpanded,
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
                         )
+                        ExposedDropdownMenu(
+                            expanded = modelMenuExpanded,
+                            onDismissRequest = { modelMenuExpanded = false },
+                        ) {
+                            displayModels.forEach { m ->
+                                DropdownMenuItem(
+                                    text = { Text(m.model) },
+                                    onClick = {
+                                        selectedModel = m.model
+                                        modelMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
-            // 自定义日期范围选择（弹出日历）
+            // 自定义日期范围选择（弹出日历）；CustomRangePicker 是悬浮 Dialog 不占布局，无需额外 Spacer
             if (showCustomPicker) {
-                Spacer(modifier = Modifier.height(8.dp))
                 CustomRangePicker(
                     onConfirm = { s, e ->
                         customRange = s to e
@@ -551,42 +631,6 @@ private fun DailyUsageCard(
                     },
                     onDismiss = { showCustomPicker = false },
                 )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            // 模型选择（下拉框）
-            if (displayModels.isNotEmpty()) {
-                var modelMenuExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = modelMenuExpanded,
-                    onExpandedChange = { modelMenuExpanded = it },
-                ) {
-                    OutlinedTextField(
-                        value = current?.model ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("模型") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                    )
-                    ExposedDropdownMenu(
-                        expanded = modelMenuExpanded,
-                        onDismissRequest = { modelMenuExpanded = false },
-                    ) {
-                        displayModels.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m.model) },
-                                onClick = {
-                                    selectedModel = m.model
-                                    modelMenuExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
             }
             Spacer(modifier = Modifier.height(12.dp))
             // 颜色图例
@@ -602,6 +646,18 @@ private fun DailyUsageCard(
             // 竖向堆叠柱状图：横轴=日期（左旧右新），纵轴=每日总 Tokens；
             // 明细面板始终显示在图表下方：默认今天（最后一天），点击有量的柱子切换
             if (current != null) {
+                // 柱状图生长动画：仅在「数据真正切换到当前维度」时从底部重新长高。
+                // 近7/30 数据即时生效；月度等维度等新数据拉取到达（fetchedFor 更新）才触发，
+                // 切换瞬间旧数据保持静态显示，避免旧数据动画与「正在加载」文本的突兀
+                val dataReadyKey = when (dimension) {
+                    DailyDimension.Recent7, DailyDimension.Recent30 -> "local:$dimension"
+                    DailyDimension.Custom -> "custom:${fetchedFor}:${fetchedDaily?.hashCode()}"
+                    else -> "$dimension:${monthlyCache[dimension]?.hashCode()}"
+                }
+                val chartProgress = remember(current?.model, dataReadyKey, refreshCount) { Animatable(0f) }
+                LaunchedEffect(current?.model, dataReadyKey, refreshCount) {
+                    chartProgress.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
+                }
                 DailyColumnChart(
                     days = displayDaily,
                     selectedDate = selectedDate,
@@ -610,6 +666,7 @@ private fun DailyUsageCard(
                         // 仅在用户点击柱子时把明细面板滚进可视区
                         if (day != null) scope.launch { bringIntoViewRequester.bringIntoView() }
                     },
+                    progress = chartProgress.value,
                 )
                 val shownDay = displayDaily.find { it.date == selectedDate } ?: displayDaily.lastOrNull()
                 shownDay?.let { day ->
@@ -633,6 +690,56 @@ private fun DailyUsageCard(
                     modifier = Modifier.padding(vertical = 16.dp),
                 )
             }
+        }
+    }
+}
+
+/** 紧凑版下拉框锚点：仿输入框外观（label + 值 + 箭头），比 OutlinedTextField 省水平空间，便于两个下拉框并排 */
+@Composable
+private fun CompactDropdownAnchor(
+    label: String,
+    value: String,
+    expanded: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val arrowAngle by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(150),
+    )
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer { rotationZ = arrowAngle },
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -852,10 +959,33 @@ private fun DailyColumnChart(
     selectedDate: String?,
     onSelect: (DailyUsage?) -> Unit,
     modifier: Modifier = Modifier,
+    progress: Float = 1f,
 ) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val markerColor = MaterialTheme.colorScheme.primary
+
+    // 点击反馈：被点击柱子短暂放大（按压感），press 动画 1→0 恢复
+    val scope = rememberCoroutineScope()
+    val press = remember { Animatable(0f) }
+    var pressedIndex by remember { mutableStateOf(-1) }
+    // 选中反馈：非选中柱变暗（选中柱全亮，其余 35% 透明度），点击切换时旧选中柱平滑变暗过渡
+    val fadeProgress = remember { Animatable(0f) }  // 0=亮，1=暗（旧选中柱过渡进度）
+    var lastSelectedDate by remember { mutableStateOf<String?>(null) }
+    var lastDaysKey by remember { mutableStateOf<String?>(null) }
+    // 数据内容标识：切换时间范围/刷新时变化，用于区分「点击切换」与「数据整体变化」
+    val daysKey = days.joinToString("|") { it.date }
+    LaunchedEffect(selectedDate, daysKey) {
+        val newIdx = days.indexOfFirst { it.date == selectedDate }
+        if (lastDaysKey != daysKey) {
+            // 数据变化（切换时间范围/刷新）：直接定位，不做过渡动画，避免旧索引错位导致闪烁
+            fadeProgress.snapTo(1f)
+        } else if (lastSelectedDate != null && lastSelectedDate != selectedDate && newIdx >= 0) {
+            // 同批数据内点击切换：旧选中柱从当前透明度平滑变暗
+            fadeProgress.animateTo(1f, tween(300))
+        }
+        lastSelectedDate = selectedDate
+        lastDaysKey = daysKey
+    }
 
     Canvas(
         modifier = modifier
@@ -872,12 +1002,19 @@ private fun DailyColumnChart(
                     val idx = days.indices.minByOrNull { kotlin.math.abs(px(it) - tap.x) }
                     // 点中有用量的柱子→切换该天明细；点空白/零用量处不动作（明细保持当前选中）
                     if (idx != null && days[idx].totalTokens > 0) {
+                        // 按压反馈动画：柱子短暂放大后恢复
+                        pressedIndex = idx
+                        scope.launch {
+                            press.snapTo(1f)
+                            press.animateTo(0f, tween(250))
+                        }
                         onSelect(days[idx])
                     }
                 }
             },
     ) {
         if (days.isEmpty()) return@Canvas
+        val p = progress.coerceIn(0f, 1f)  // 生长动画进度：0=从底部开始，1=完整高度
         val maxV = days.maxOfOrNull { it.totalTokens }?.coerceAtLeast(1L) ?: 1L
         val n = days.size
         val padL = 44.dp.toPx()
@@ -900,6 +1037,7 @@ private fun DailyColumnChart(
             corner: Float,
             roundTop: Boolean,
             roundBottom: Boolean,
+            alpha: Float = 1f,
         ) {
             if (width <= 0f || height <= 0f) return
             val path = Path()
@@ -912,7 +1050,7 @@ private fun DailyColumnChart(
                     bottomRight = CornerRadius(if (roundBottom) corner else 0f),
                 )
             )
-            drawPath(path, color)
+            drawPath(path, color, alpha = alpha)
         }
 
         // 网格线 + Y 轴刻度（0 / 中间 / max）
@@ -948,49 +1086,46 @@ private fun DailyColumnChart(
         val barW = if (n > 1) chartW / n * 0.72f else chartW * 0.6f
         val corner = minOf(6.dp.toPx(), barW / 2f)
         val bottom = py(0)
+        val selIdx = days.indexOfFirst { it.date == selectedDate }
+        val lastSelIdx = days.indexOfFirst { it.date == lastSelectedDate }
         days.forEachIndexed { i, d ->
-            val left = px(i) - barW / 2f
+            // 按压反馈：被点击的柱子宽度短暂放大（press 动画 1→0 恢复）
+            val effBarW = barW * (if (i == pressedIndex) 1f + press.value * 0.08f else 1f)
+            val left = px(i) - effBarW / 2f
             val total = d.totalTokens
+            // 选中反馈：选中柱全亮，非选中柱变暗；点击切换时旧选中柱平滑变暗
+            val barAlpha = when {
+                i == selIdx -> 1f
+                i == lastSelIdx -> 1f - 0.65f * fadeProgress.value
+                else -> 0.35f
+            }
             if (total > 0) {
-                val hH = chartH * d.cacheHitTokens.toFloat() / maxV.toFloat()
-                val mH = chartH * d.cacheMissTokens.toFloat() / maxV.toFloat()
-                val rH = chartH * d.responseTokens.toFloat() / maxV.toFloat()
+                // 生长动画：各段高度随进度从底部向上增长
+                val hH = chartH * d.cacheHitTokens.toFloat() / maxV.toFloat() * p
+                val mH = chartH * d.cacheMissTokens.toFloat() / maxV.toFloat() * p
+                val rH = chartH * d.responseTokens.toFloat() / maxV.toFloat() * p
                 val hasHit = hH > 0f
                 val hasMiss = mH > 0f
                 val hasResp = rH > 0f
                 var y = bottom
                 if (hasResp) {
-                    drawRoundedRect(ResponseColor, left, y - rH, barW, rH, corner,
-                        roundTop = false, roundBottom = false)
+                    drawRoundedRect(ResponseColor, left, y - rH, effBarW, rH, corner,
+                        roundTop = false, roundBottom = false, alpha = barAlpha)
                     y -= rH
                 }
                 if (hasMiss) {
-                    drawRoundedRect(MissColor, left, y - mH, barW, mH, corner,
-                        roundTop = false, roundBottom = false)
+                    drawRoundedRect(MissColor, left, y - mH, effBarW, mH, corner,
+                        roundTop = false, roundBottom = false, alpha = barAlpha)
                     y -= mH
                 }
                 if (hasHit) {
-                    drawRoundedRect(HitColor, left, y - hH, barW, hH, corner,
-                        roundTop = true, roundBottom = false)
+                    drawRoundedRect(HitColor, left, y - hH, effBarW, hH, corner,
+                        roundTop = true, roundBottom = false, alpha = barAlpha)
                     y -= hH
                 }
             }
         }
 
-        // 选中柱上方标记小圆点
-        val selIdx = days.indexOfFirst { it.date == selectedDate }
-        if (selIdx >= 0 && days[selIdx].totalTokens > 0) {
-            val markerPaint = android.graphics.Paint().apply {
-                isAntiAlias = true
-                color = markerColor.toArgb()
-            }
-            drawContext.canvas.nativeCanvas.drawCircle(
-                px(selIdx),
-                py(days[selIdx].totalTokens) - 6.dp.toPx(),
-                4.dp.toPx(),
-                markerPaint,
-            )
-        }
     }
 }
 

@@ -4,10 +4,16 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +30,11 @@ import com.deepseek.balance.model.UsageData
 // Live Edit 改某个组件时只重编那一个 class，可直接热替换。
 // ============================================================================
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+)
 @Composable
 fun MainScreen(
     apiKey: String,
@@ -42,10 +52,14 @@ fun MainScreen(
     alertEnabled: Boolean = false,
     alertThreshold: Double = 50.0,
     settingsVisible: Boolean = false,
+    refreshCount: Int = 0,
 ) {
     val scrollState = rememberScrollState()
     val hasKey = apiKey.isNotBlank()
     val hasData = result != null || usage != null
+
+    // 下拉刷新状态（供 MD3 风格指示器读取下拉进度）
+    val pullState = rememberPullToRefreshState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var previousLoading by remember { mutableStateOf(isLoading) }
@@ -74,86 +88,112 @@ fun MainScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            // 最新 MD3（Expressive）风格 Snackbar：大圆角 + 动态取色（跟随壁纸的浅色容器）
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        Column(
+        // 禁用系统 overscroll：顶部下拉由 PullToRefreshBox 独占（无回弹）；下拉刷新手势与系统回弹在系统层面冲突，故整体关闭
+        CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+        PullToRefreshBox(
+            isRefreshing = isLoading,
+            onRefresh = onQueryClick,
+            state = pullState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(scrollState),
+                .padding(innerPadding),
+            indicator = {
+                // 官方 LoadingIndicator（Material3 1.5.0-alpha Expressive 风格）：跟随下拉位移出现
+                PullToRefreshDefaults.LoadingIndicator(
+                    state = pullState,
+                    isRefreshing = isLoading,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            },
         ) {
-            Spacer(
-                modifier = Modifier.height(
-                    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
-                )
-            )
-
-            TopBar(
-                isLoading = isLoading,
-                hasData = hasData,
-                onSettingsClick = onSettingsClick,
-            )
-
-            AnimatedVisibility(
-                visible = result != null,
-                enter = fadeIn(animationSpec = tween(300)),
-                exit = fadeOut(animationSpec = tween(200)),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(scrollState),
             ) {
-                BalanceCard(
-                    symbol = symbol,
-                    totalBalance = totalBalance,
-                    statusText = statusText,
-                    statusColor = statusColor,
-                    grantedBalance = grantedBalance,
-                    toppedUpBalance = toppedUpBalance,
+                Spacer(
+                    modifier = Modifier.height(
+                        WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
+                    )
                 )
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            RefreshControls(
-                hasData = hasData,
-                hasKey = hasKey,
-                isLoading = isLoading,
-                onQueryClick = onQueryClick,
-            )
-
-            if (lastQueryTime != null) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "上次更新 $lastQueryTime",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
+                TopBar(
+                    onSettingsClick = onSettingsClick,
                 )
+
+                AnimatedVisibility(
+                    visible = result != null,
+                    enter = fadeIn(animationSpec = tween(300)),
+                    exit = fadeOut(animationSpec = tween(200)),
+                ) {
+                    BalanceCard(
+                        symbol = symbol,
+                        totalBalance = totalBalance,
+                        statusText = statusText,
+                        statusColor = statusColor,
+                        grantedBalance = grantedBalance,
+                        toppedUpBalance = toppedUpBalance,
+                        refreshCount = refreshCount,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                if (lastQueryTime != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "上次更新 $lastQueryTime",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
+                // 用量明细（网页令牌鉴权）
+                UsageSection(
+                    usage = usage,
+                    usageError = usageError,
+                    hasWebToken = hasWebToken,
+                    isLoading = isLoading,
+                    onSettingsClick = onSettingsClick,
+                    loadRangeDaily = loadRangeDaily,
+                    refreshCount = refreshCount,
+                )
+
+                if (errorMessage != null) {
+                    ErrorCard(message = errorMessage)
+                }
+
+                if (!hasData) {
+                    EmptyState(
+                        hasKey = hasKey,
+                        onSettingsClick = onSettingsClick,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
             }
-
-            // 用量明细（网页令牌鉴权）
-            UsageSection(
-                usage = usage,
-                usageError = usageError,
-                hasWebToken = hasWebToken,
-                isLoading = isLoading,
-                onSettingsClick = onSettingsClick,
-                loadRangeDaily = loadRangeDaily,
-            )
-
-            if (errorMessage != null) {
-                ErrorCard(message = errorMessage)
-            }
-
-            if (!hasData && errorMessage == null && !isLoading) {
-                EmptyState(hasKey = hasKey)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
+        }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, widthDp = 360, heightDp = 720)
 @Composable
 private fun MainScreenPreview() {

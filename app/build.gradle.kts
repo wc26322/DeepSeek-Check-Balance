@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.deepseek.balance"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.deepseek.balance"
@@ -59,8 +59,10 @@ android {
 
 dependencies {
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2025.01.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.02.01")
     implementation(composeBom)
+    // Material3 alpha（最早包含 PullToRefreshDefaults.LoadingIndicator 的版本），显式覆盖 BOM 的稳定版
+    implementation("androidx.compose.material3:material3:1.5.0-alpha17")
 
     // Core
     implementation("androidx.core:core-ktx:1.12.0")

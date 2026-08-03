@@ -24,8 +24,13 @@ internal fun BalanceCard(
     statusColor: Color,
     grantedBalance: String,
     toppedUpBalance: String,
+    refreshCount: Int = 0,
 ) {
     Spacer(modifier = Modifier.height(8.dp))
+
+    val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
+    val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
+    val toppedUpAmount = toppedUpBalance.toDoubleOrNull() ?: 0.0
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -52,15 +57,28 @@ internal fun BalanceCard(
 
             Spacer(modifier = Modifier.height(3.dp))
 
-            Text(
-                text = "$symbol$totalBalance",
-                style = MaterialTheme.typography.displayMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-1).sp,
-                    fontFeatureSettings = "tnum",
-                ),
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
+            // 金额滚动：刷新后从 0 过渡到当前值
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = symbol,
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-1).sp,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+                AnimatedAmount(
+                    target = totalAmount,
+                    restartKey = refreshCount,
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-1).sp,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
 
             if (grantedBalance.isNotBlank()) {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -70,12 +88,16 @@ internal fun BalanceCard(
                 ) {
                     BalanceLine(
                         label = "赠金",
-                        value = "${symbol}$grantedBalance",
+                        symbol = symbol,
+                        amountTarget = grantedAmount,
+                        restartKey = refreshCount,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     )
                     BalanceLine(
                         label = "充值",
-                        value = "${symbol}$toppedUpBalance",
+                        symbol = symbol,
+                        amountTarget = toppedUpAmount,
+                        restartKey = refreshCount,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     )
                 }

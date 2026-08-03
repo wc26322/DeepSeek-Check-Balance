@@ -22,8 +22,9 @@ object WidgetRefresh {
     /**
      * 拉取最新余额并写回存储。返回是否成功。
      * 失败时保留旧数据，不抛异常。
+     * @param animate 是否播放 0 → 当前值 滚动动画（仅手动刷新时传 true，自动刷新不打扰）
      */
-    fun refresh(context: Context): Boolean {
+    fun refresh(context: Context, animate: Boolean = false): Boolean {
         val prefs = context.getSharedPreferences("deepseek_balance", Context.MODE_PRIVATE)
         val apiKey = prefs.getString("api_key", "") ?: ""
         if (apiKey.isBlank()) return false
@@ -45,6 +46,8 @@ object WidgetRefresh {
             // 用量（总/今日 Tokens）：需要网页令牌，失败保留旧值，不影响余额刷新
             refreshTokens(context)
             updateAllWidgets(context)
+            // 仅手动刷新播放 0 → 当前值 滚动动画
+            if (animate) WidgetCountUpAnimator.start(context)
             true
         } catch (_: Exception) {
             false

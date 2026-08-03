@@ -12,8 +12,6 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TopBar(
-    isLoading: Boolean,
-    hasData: Boolean,
     onSettingsClick: () -> Unit,
 ) {
     Row(
@@ -29,15 +27,11 @@ internal fun TopBar(
             color = MaterialTheme.colorScheme.onBackground,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (isLoading && hasData) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            FilledIconButton(onClick = onSettingsClick) {
+            // FilledTonal 风格（浅色调底 + 主题色图标），单参数 shapes（pressedShape 默认同 shape，无按压变形动画）
+            FilledTonalIconButton(
+                onClick = onSettingsClick,
+                shapes = IconButtonShapes(IconButtonDefaults.filledShape),
+            ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "设置",

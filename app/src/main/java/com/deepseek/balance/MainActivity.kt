@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -38,6 +39,7 @@ import com.deepseek.balance.widget.BalanceWidgetProvider
 import com.deepseek.balance.widget.WidgetAutoRefreshService
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileWriter
@@ -258,6 +260,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BalanceAppContent(
     prefs: android.content.SharedPreferences,
@@ -306,9 +309,28 @@ private fun BalanceAppContent(
 
     // 数据
     var isLoading by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<BalanceResponse?>(null) }
+    var result by remember {
+        // 有 API Key 的冷启动：先显示 0 余额占位卡片（不闪空状态提示），
+        // 自动刷新完成后更新为新数据；无 API Key 时不显示，由 EmptyState 引导去设置
+        val hasKey = !(prefs.getString("api_key", "") ?: "").isBlank()
+        val initial: com.deepseek.balance.model.BalanceResponse? =
+            if (hasKey) {
+                com.deepseek.balance.model.BalanceResponse(
+                    isAvailable = true,
+                    balanceInfos = listOf(
+                        com.deepseek.balance.model.BalanceInfo("CNY", "0.00", "0.00", "0.00"),
+                    ),
+                )
+            } else {
+                null
+            }
+        mutableStateOf(initial)
+    }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lastQueryTime by remember { mutableStateOf<String?>(null) }
+
+    // 刷新完成计数：每次成功刷新 +1，驱动余额数字从 0 滚动到当前值
+    var refreshCount by remember { mutableStateOf(0) }
 
     // 用量数据（网页令牌鉴权）
     var usage by remember { mutableStateOf<UsageData?>(null) }
@@ -327,7 +349,8 @@ private fun BalanceAppContent(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    suspend fun doRefresh(showErrors: Boolean = true) {
+    suspend fun doRefresh(showErrors: Boolean = true, minDurationMs: Long = 0) {
+        val startMs = System.currentTimeMillis()
         isLoading = true
         if (showErrors) {
             errorMessage = null
@@ -388,12 +411,18 @@ private fun BalanceAppContent(
             if (result != null || usage != null) {
                 val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 lastQueryTime = sdf.format(Date())
+                refreshCount++
             }
         } catch (e: Exception) {
             if (showErrors && errorMessage == null && usageError == null) {
                 errorMessage = "网络错误: ${e.localizedMessage ?: "未知错误"}"
             }
         } finally {
+            // 手动刷新时保证指示器至少转几圈再收回（避免网络快时一闪而过）
+            if (minDurationMs > 0) {
+                val remain = minDurationMs - (System.currentTimeMillis() - startMs)
+                if (remain > 0) delay(remain)
+            }
             isLoading = false
         }
     }
@@ -405,9 +434,9 @@ private fun BalanceAppContent(
         }
     }
 
-    // 手动查询（显示错误）
+    // 手动查询（显示错误）；刷新动画至少转几圈（800ms）再收回
     val onQueryClick: () -> Unit = {
-        scope.launch { doRefresh() }
+        scope.launch { doRefresh(minDurationMs = 800L) }
     }
 
     // 每日用量「本月/上月/自定义」维度：按日期范围拉取月度接口数据。
@@ -476,6 +505,7 @@ private fun BalanceAppContent(
                     alertEnabled = alertEnabled,
                     alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
                     settingsVisible = showSettings,
+                    refreshCount = refreshCount,
                 )
             }
             // ---- 设置页 ----

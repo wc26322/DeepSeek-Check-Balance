@@ -105,53 +105,53 @@ internal fun UsageSection(
         return
     }
 
-    // 首次加载中（已配令牌但还没有数据）
-    if (isLoading && usage == null) {
-        UsageLoadingCard()
-        return
-    }
-
-    // 已加载
+    // 已配置令牌：数据直接渲染，首帧即显示（与余额卡同步出现，不做淡入）。
+    // 冷启动时 usage 为「结构完整、数值全 0」的占位数据，渲染出真实卡片框架，
+    // 数据到达后原地填充（柱状图生长/数字滚动等内部动画体现变化）
     if (usage != null) {
-        // 每日用量放最上面
-        if (usage.byModelDaily.isNotEmpty()) {
-            DailyUsageCard(
-                recentDaily = usage.byModelDaily,
-                loadRangeDaily = loadRangeDaily,
-                refreshCount = refreshCount,
-            )
+        val u = usage
+        // 纵向排列所有卡片
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 每日用量放最上面
+            if (u.byModelDaily.isNotEmpty()) {
+                DailyUsageCard(
+                    recentDaily = u.byModelDaily,
+                    loadRangeDaily = loadRangeDaily,
+                    refreshCount = refreshCount,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            UsageOverviewCard(usage = u)
             Spacer(modifier = Modifier.height(16.dp))
-        }
-        UsageOverviewCard(usage = usage)
-        Spacer(modifier = Modifier.height(16.dp))
-        if (usage.byModel.isNotEmpty()) {
-            UsageListCard(
-                title = "按模型",
-                rows = usage.byModel.map { m ->
-                    UsageRowData(
-                        primary = m.model,
-                        calls = m.apiCalls,
-                        tokens = m.totalTokens,
-                        cost = m.costCny,
-                    )
-                },
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-        if (usage.byKey.isNotEmpty()) {
-            UsageListCard(
-                title = "按 API Key",
-                rows = usage.byKey.map { k ->
-                    UsageRowData(
-                        primary = k.name,
-                        secondary = k.sensitiveId,
-                        calls = k.apiCalls,
-                        tokens = k.totalTokens,
-                        cost = k.costCny,
-                    )
-                },
-                icon = Icons.Default.Key,
-            )
+            if (u.byModel.isNotEmpty()) {
+                UsageListCard(
+                    title = "按模型",
+                    rows = u.byModel.map { m ->
+                        UsageRowData(
+                            primary = m.model,
+                            calls = m.apiCalls,
+                            tokens = m.totalTokens,
+                            cost = m.costCny,
+                        )
+                    },
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            if (u.byKey.isNotEmpty()) {
+                UsageListCard(
+                    title = "按 API Key",
+                    rows = u.byKey.map { k ->
+                        UsageRowData(
+                            primary = k.name,
+                            secondary = k.sensitiveId,
+                            calls = k.apiCalls,
+                            tokens = k.totalTokens,
+                            cost = k.costCny,
+                        )
+                    },
+                    icon = Icons.Default.Key,
+                )
+            }
         }
     }
 }
@@ -196,34 +196,7 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun UsageLoadingCard() {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                strokeWidth = 2.dp,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "正在加载用量数据…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
+// ===================== 用量概览 =====================
 
 @Composable
 private fun UsageOverviewCard(usage: UsageData) {
@@ -238,37 +211,47 @@ private fun UsageOverviewCard(usage: UsageData) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 text = "用量概览",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.sp,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            // 竖排三行：每行占满卡片宽度，标签居左、数值右对齐，精确长数字也放得下
-            OverviewRow(
-                label = "累计消费",
+            Spacer(modifier = Modifier.height(12.dp))
+            // 竖排三行：每行 装饰色条 + 标签 + 数值（色条不按比例，仅作色彩点缀区分）
+            OverviewBar(
+                label = "总消费金额",
                 value = formatMoney(usage.totalCostCny),
+                color = MaterialTheme.colorScheme.primary,
             )
             Spacer(modifier = Modifier.height(12.dp))
-            OverviewRow(
-                label = "请求次数",
+            OverviewBar(
+                label = "总请求次数",
                 value = formatInt(usage.apiCalls),
+                color = Color(0xFF42A5F5),
             )
             Spacer(modifier = Modifier.height(12.dp))
-            OverviewRow(
-                label = "Tokens",
+            OverviewBar(
+                label = "总 Tokens",
                 value = formatLong(usage.totalTokens),
+                color = Color(0xFF4CAF50),
             )
         }
     }
 }
 
+/** 概览数据行：装饰色条 + 标签 + 数值。色条固定长度不做比例，仅作色彩点缀区分三个维度 */
 @Composable
-private fun OverviewRow(label: String, value: String) {
+private fun OverviewBar(label: String, value: String, color: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // 固定长度装饰色条（圆角小方块）
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 16.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color),
+        )
+        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
@@ -543,9 +526,15 @@ private fun DailyUsageCard(
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "每日用量 · UTC",
+                text = "每日用量",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "所有日期均按 UTC+0 时间显示",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(10.dp))
             // 时间维度 + 模型选择并排，奶糖胶囊锚点（浅蓝渐变底 + 渐变圆箭头）

@@ -23,6 +23,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.deepseek.balance.model.BalanceResponse
 import com.deepseek.balance.model.UsageData
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // ============================================================================
 // MainScreen —— 仅负责「状态编排」。
@@ -53,6 +55,7 @@ fun MainScreen(
     alertThreshold: Double = 50.0,
     settingsVisible: Boolean = false,
     refreshCount: Int = 0,
+    dataUpdatedTick: Int = 0,
 ) {
     val scrollState = rememberScrollState()
     val hasKey = apiKey.isNotBlank()
@@ -62,15 +65,21 @@ fun MainScreen(
     val pullState = rememberPullToRefreshState()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    var previousLoading by remember { mutableStateOf(isLoading) }
-    LaunchedEffect(isLoading, settingsVisible) {
-        if (!settingsVisible && previousLoading && !isLoading && hasData && errorMessage == null) {
-            snackbarHostState.showSnackbar(
-                message = "已显示最新数据",
-                duration = SnackbarDuration.Short,
-            )
+    val scope = rememberCoroutineScope()
+    // 数据一更新成功（dataUpdatedTick 变化）就弹提示，不等刷新指示器收回
+    LaunchedEffect(dataUpdatedTick) {
+        if (dataUpdatedTick > 0 && !settingsVisible) {
+            // showSnackbar 会挂起等待显示结束（Short=4s 超时），
+            // 放独立协程，主协程延迟 1.5s 后主动 dismiss 以缩短显示时长
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "已显示最新数据",
+                    duration = SnackbarDuration.Short,
+                )
+            }
+            delay(1500)
+            snackbarHostState.currentSnackbarData?.dismiss()
         }
-        previousLoading = isLoading
     }
 
     // 余额数据（从 result 取出，下传给纯展示部件）
@@ -147,22 +156,23 @@ fun MainScreen(
                         statusColor = statusColor,
                         grantedBalance = grantedBalance,
                         toppedUpBalance = toppedUpBalance,
+                        totalCostCny = usage?.totalCostCny,
                         refreshCount = refreshCount,
                     )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (lastQueryTime != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "上次更新 $lastQueryTime",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                // 上次更新时间：文本区域始终保留（null 时显示占位文案），
+                // 避免刷新完成后文本出现把下方卡片挤下移
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = lastQueryTime?.let { "上次更新 $it" } ?: "等待更新…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
 
                 // API Key 提示卡（未填写时显示，常驻不随刷新消失）
                 if (!hasData) {

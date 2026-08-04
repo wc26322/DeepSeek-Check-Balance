@@ -24,13 +24,13 @@ internal fun BalanceCard(
     statusColor: Color,
     grantedBalance: String,
     toppedUpBalance: String,
+    totalCostCny: Double? = null,
     refreshCount: Int = 0,
 ) {
     Spacer(modifier = Modifier.height(8.dp))
 
     val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
     val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
-    val toppedUpAmount = toppedUpBalance.toDoubleOrNull() ?: 0.0
 
     // 渐变主卡：品牌蓝 → 深蓝，白色文字，顶部叠一层柔和高光
     val primary = MaterialTheme.colorScheme.primary
@@ -112,13 +112,33 @@ internal fun BalanceCard(
                             restartKey = refreshCount,
                             color = Color.White.copy(alpha = 0.85f),
                         )
-                        BalanceLine(
-                            label = "充值",
-                            symbol = symbol,
-                            amountTarget = toppedUpAmount,
-                            restartKey = refreshCount,
-                            color = Color.White.copy(alpha = 0.85f),
-                        )
+                        // 总消费：来自用量接口（累计消费），复用 BalanceLine 保证与赠金完全对齐；
+                        // 未配置网页令牌时显示 --（无动画）
+                        if (totalCostCny != null) {
+                            BalanceLine(
+                                label = "总消费",
+                                symbol = symbol,
+                                amountTarget = totalCostCny,
+                                restartKey = refreshCount,
+                                color = Color.White.copy(alpha = 0.85f),
+                            )
+                        } else {
+                            Column {
+                                Text(
+                                    text = "总消费",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                )
+                                Text(
+                                    text = "--",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontWeight = FontWeight.Medium,
+                                        fontFeatureSettings = "tnum",
+                                    ),
+                                    color = Color.White.copy(alpha = 0.85f),
+                                )
+                            }
+                        }
                     }
                 }
             }

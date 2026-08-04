@@ -145,7 +145,7 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
             else
                 PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
+                keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(
@@ -229,7 +229,7 @@ private fun WebTokenCard(
             else
                 PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
+                keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(

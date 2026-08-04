@@ -28,6 +28,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.metrics.performance.JankStats
 import com.deepseek.balance.model.BalanceResponse
+import com.deepseek.balance.model.DailyUsage
+import com.deepseek.balance.model.ModelDailyUsage
+import com.deepseek.balance.model.ModelUsage
 import com.deepseek.balance.model.UsageData
 import com.deepseek.balance.network.ApiClient
 import com.deepseek.balance.network.UsageClient
@@ -332,8 +335,17 @@ private fun BalanceAppContent(
     // 刷新完成计数：每次成功刷新 +1，驱动余额数字从 0 滚动到当前值
     var refreshCount by remember { mutableStateOf(0) }
 
+    // 数据已更新事件：成功刷新（拿到新数据）时 +1，MainScreen 收到即弹「已显示最新数据」提示
+    var dataUpdatedTick by remember { mutableStateOf(0) }
+
     // 用量数据（网页令牌鉴权）
-    var usage by remember { mutableStateOf<UsageData?>(null) }
+    var usage by remember {
+        // 有网页令牌的冷启动：先显示结构完整、数值全 0 的占位卡片框架（与余额卡同理），
+        // 自动刷新完成后原地填充真实数据；无令牌时不显示，由 NoTokenHint 引导去设置
+        val hasToken = !(prefs.getString("web_token", "") ?: "").isBlank()
+        val initial: UsageData? = if (hasToken) placeholderUsage() else null
+        mutableStateOf(initial)
+    }
     var usageError by remember { mutableStateOf<String?>(null) }
 
     // 每次进入前台时自动刷新
@@ -402,7 +414,8 @@ private fun BalanceAppContent(
 
             usage = usageResp
             if (usageResp != null) usageError = null
-            if (usageErr != null) usageError = usageErr
+            // 静默刷新失败时保留占位/旧数据（与余额一致），手动刷新才显示错误
+            if (usageErr != null && showErrors) usageError = usageErr
             // 同步用量（总/今日 Tokens）到小组件存储
             if (usageResp != null) {
                 com.deepseek.balance.widget.WidgetRefresh.saveTokens(prefs, usageResp)
@@ -412,6 +425,8 @@ private fun BalanceAppContent(
                 val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 lastQueryTime = sdf.format(Date())
                 refreshCount++
+                // 数据已更新：立即通知界面弹提示（不等刷新指示器收回）
+                dataUpdatedTick++
             }
         } catch (e: Exception) {
             if (showErrors && errorMessage == null && usageError == null) {
@@ -427,9 +442,10 @@ private fun BalanceAppContent(
         }
     }
 
-    // 自动刷新（静默，失败不弹错）—— 仅 refreshVersion 作为 key，避免在设置页输入 API Key 时反复触发取消/重启协程
+    // 自动刷新（静默，失败不弹错）—— 仅 refreshVersion 作为 key，避免在设置页输入 API Key 时反复触发取消/重启协程。
+    // 任一凭证（API Key 或网页令牌）存在即自动刷新：占位卡片等待被真实数据填充
     LaunchedEffect(refreshVersion) {
-        if (apiKey.isNotBlank() && refreshVersion > 0) {
+        if ((apiKey.isNotBlank() || webToken.isNotBlank()) && refreshVersion > 0) {
             doRefresh(showErrors = false)
         }
     }
@@ -506,6 +522,7 @@ private fun BalanceAppContent(
                     alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
                     settingsVisible = showSettings,
                     refreshCount = refreshCount,
+                    dataUpdatedTick = dataUpdatedTick,
                 )
             }
             // ---- 设置页 ----
@@ -568,6 +585,27 @@ private fun BalanceAppContent(
             )
         }
     }
+}
+
+/** 冷启动占位用量数据：结构与真实数据完全一致、数值全 0，渲染出真实卡片框架 */
+private fun placeholderUsage(): UsageData {
+    // 近 7 天真实日期（MM-dd），数值全 0：柱状图显示空架子（无柱子），日期刻度正常
+    val fmt = java.text.SimpleDateFormat("MM-dd", Locale.getDefault())
+    val dates = (6 downTo 0).map { fmt.format(Date(System.currentTimeMillis() - it * 86400000L)) }
+    return UsageData(
+        totalCostCny = 0.0,
+        apiCalls = 0,
+        totalTokens = 0L,
+        windowDays = 30,
+        byModel = listOf(ModelUsage("deepseek-chat", 0, 0L, 0.0)),
+        byKey = listOf(),
+        byModelDaily = listOf(
+            ModelDailyUsage(
+                model = "deepseek-chat",
+                daily = dates.map { DailyUsage(it, 0, 0L, 0L, 0L) },
+            ),
+        ),
+    )
 }
 
 /** 保存数据到 Widget 共享存储 */

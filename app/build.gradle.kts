@@ -12,8 +12,8 @@ android {
         applicationId = "com.deepseek.balance"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.3.3.1"
+        versionCode = 9
+        versionName = "1.3.3.2"
 
         // 网络安全：允许明文传输（仅用于 API 调用）
         vectorDrawables {

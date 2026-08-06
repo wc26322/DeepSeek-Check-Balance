@@ -1,9 +1,10 @@
 package com.deepseek.balance.ui
 
-import android.app.DownloadManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,8 +14,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -35,10 +38,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.core.content.FileProvider
+import com.deepseek.balance.network.AppDownloader
 import com.deepseek.balance.network.LatestRelease
 import com.deepseek.balance.network.UpdateChecker
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -499,31 +507,7 @@ private sealed interface UpdateState {
     data object Checking : UpdateState
     data object Latest : UpdateState
     data class Found(val release: LatestRelease) : UpdateState
-    data class Downloading(val downloadId: Long, val release: LatestRelease) : UpdateState
-    data object Downloaded : UpdateState
     data object Error : UpdateState
-}
-
-/** 用系统 DownloadManager 下载 APK 到应用外部目录；返回下载任务 id（失败返回 null） */
-private fun enqueueDownload(context: android.content.Context, release: LatestRelease): Long? {
-    val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
-    val request = DownloadManager.Request(Uri.parse(release.apkUrl))
-        .setTitle("DeepSeek 余额查询 ${release.version}")
-        .setDescription("正在下载更新…")
-        .setMimeType("application/vnd.android.package-archive")
-        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        // 默认不允许计费网络（移动数据）下载，会导致任务一直排队；显式放行
-        .setAllowedOverMetered(true)
-        .setDestinationInExternalFilesDir(
-            context,
-            Environment.DIRECTORY_DOWNLOADS,
-            "DeepSeekBalanceApp-${release.version}.apk",
-        )
-    return try {
-        dm.enqueue(request)
-    } catch (e: Exception) {
-        null
-    }
 }
 
 /** 下载速度格式化：B/s / KB/s / MB/s */
@@ -533,6 +517,34 @@ private fun formatSpeed(bytesPerSec: Long): String = when {
     bytesPerSec >= 1024 ->
         "%.0f KB/s".format(java.util.Locale.US, bytesPerSec / 1024f)
     else -> "$bytesPerSec B/s"
+}
+
+/** 拉起系统安装器安装 APK；未授权「安装未知应用」时引导去系统设置开启 */
+private fun installApk(context: android.content.Context, file: File) {
+    // Android 8.0+ 从 App 直接安装 APK 需要「允许安装未知应用」授权
+    if (Build.VERSION.SDK_INT >= 26 && !context.packageManager.canRequestPackageInstalls()) {
+        Toast.makeText(context, "请先允许「安装未知应用」", Toast.LENGTH_SHORT).show()
+        try {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}"),
+                ),
+            )
+        } catch (_: Exception) {
+        }
+        return
+    }
+    try {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "无法打开安装器：${e.message}", Toast.LENGTH_SHORT).show()
+    }
 }
 
 // ===================== 关于 =====================
@@ -551,14 +563,81 @@ private fun AboutCard() {
 
     // 检查更新状态
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
-    // 下载进度（0~1）与速度（字节/秒），仅下载中状态更新
+    // 当前操作的 Release（弹窗标题与下载文件名用）
+    var activeRelease by remember { mutableStateOf<LatestRelease?>(null) }
+    // 下载弹窗状态
+    var showDownloadDialog by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableFloatStateOf(0f) }
     var downloadSpeed by remember { mutableLongStateOf(0L) }
+    var downloadPending by remember { mutableStateOf(true) }
+    var downloadFailed by remember { mutableStateOf<String?>(null) }
+    var downloadedFile by remember { mutableStateOf<File?>(null) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
+
+    // 启动应用内下载：弹窗显示进度，完成后可原地安装
+    val startDownload: (LatestRelease) -> Unit = download@ { release ->
+        if (downloadJob?.isActive == true) return@download
+        activeRelease = release
+        showDownloadDialog = true
+        downloadProgress = 0f
+        downloadSpeed = 0L
+        downloadPending = true
+        downloadFailed = null
+        downloadedFile = null
+        val targetDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val target = File(targetDir, "DeepSeekBalanceApp-${release.version}.apk")
+        downloadJob = scope.launch {
+            var lastBytes = 0L
+            var lastTime = 0L
+            try {
+                AppDownloader.download(release.apkUrl, target) { soFar, total ->
+                    // 进度回调（IO 线程）：更新进度与差分速度
+                    downloadPending = false
+                    if (total > 0) {
+                        downloadProgress = (soFar.toFloat() / total).coerceIn(0f, 1f)
+                    }
+                    val now = System.currentTimeMillis()
+                    if (lastTime > 0 && now - lastTime >= 500) {
+                        val dt = now - lastTime
+                        downloadSpeed = if (dt > 0) (soFar - lastBytes) * 1000 / dt else 0L
+                        lastBytes = soFar
+                        lastTime = now
+                    } else if (lastTime == 0L) {
+                        lastBytes = soFar
+                        lastTime = now
+                    }
+                }
+                downloadedFile = target
+            } catch (e: CancellationException) {
+                // 用户取消：关闭弹窗，保持「发现新版本」可重新下载
+                showDownloadDialog = false
+            } catch (e: Exception) {
+                downloadFailed = e.message ?: "下载失败"
+            }
+        }
+    }
+
+    // 取消下载：中断网络 + 取消协程
+    val onCancelDownload: () -> Unit = {
+        AppDownloader.cancel()
+        downloadJob?.cancel()
+        downloadJob = null
+        showDownloadDialog = false
+    }
+
+    // 安装：拉起系统安装器（未授权时引导去系统设置）
+    val onInstallDownload: () -> Unit = {
+        val file = downloadedFile
+        if (file != null) {
+            showDownloadDialog = false
+            installApk(context, file)
+        }
+    }
 
     val onUpdateClick: () -> Unit = {
         when (val s = updateState) {
-            // 发现新版本：点击开始下载（无直链时打开 Release 页面兜底）
+            // 发现新版本：点击弹出下载窗口（无直链时打开 Release 页面兜底）
             is UpdateState.Found -> {
                 val release = s.release
                 if (release.apkUrl.isBlank()) {
@@ -566,17 +645,10 @@ private fun AboutCard() {
                         Intent(Intent.ACTION_VIEW, Uri.parse(UpdateChecker.releasePageUrl(release.tagName))),
                     )
                 } else {
-                    val id = enqueueDownload(context, release)
-                    if (id != null) {
-                        downloadProgress = 0f
-                        downloadSpeed = 0L
-                        updateState = UpdateState.Downloading(id, release)
-                    } else {
-                        Toast.makeText(context, "下载失败：无法创建下载任务", Toast.LENGTH_SHORT).show()
-                    }
+                    startDownload(release)
                 }
             }
-            is UpdateState.Checking, is UpdateState.Downloading, UpdateState.Downloaded -> { /* 忽略 */ }
+            is UpdateState.Checking -> { /* 忽略重复点击 */ }
             // 空闲 / 已是最新 / 失败：点击触发（重新）检查
             else -> {
                 updateState = UpdateState.Checking
@@ -593,61 +665,6 @@ private fun AboutCard() {
                     }
                 }
             }
-        }
-    }
-
-    // 下载中：轮询 DownloadManager 查询进度与速度，直到完成/失败
-    val downloadingId = (updateState as? UpdateState.Downloading)?.downloadId
-    LaunchedEffect(downloadingId) {
-        if (downloadingId == null) return@LaunchedEffect
-        val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
-        var lastBytes = 0L
-        var lastTime = 0L
-        while (true) {
-            val cursor = try {
-                dm.query(DownloadManager.Query().setFilterById(downloadingId))
-            } catch (e: Exception) {
-                null
-            }
-            if (cursor == null || !cursor.moveToFirst()) {
-                cursor?.close()
-                return@LaunchedEffect
-            }
-            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            val soFar = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-            val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-            when (status) {
-                DownloadManager.STATUS_SUCCESSFUL -> {
-                    cursor.close()
-                    updateState = UpdateState.Downloaded
-                    Toast.makeText(context, "下载完成，请从通知栏点击安装", Toast.LENGTH_SHORT).show()
-                    return@LaunchedEffect
-                }
-                DownloadManager.STATUS_FAILED -> {
-                    cursor.close()
-                    updateState = UpdateState.Error
-                    Toast.makeText(context, "下载失败，请重试", Toast.LENGTH_SHORT).show()
-                    return@LaunchedEffect
-                }
-                else -> {
-                    // RUNNING / PAUSED / PENDING：更新进度与速度
-                    if (total > 0) {
-                        downloadProgress = (soFar.toFloat() / total).coerceIn(0f, 1f)
-                    }
-                    val now = System.currentTimeMillis()
-                    if (lastTime > 0 && now - lastTime >= 500) {
-                        val dt = now - lastTime
-                        downloadSpeed = if (dt > 0) (soFar - lastBytes) * 1000 / dt else 0L
-                        lastBytes = soFar
-                        lastTime = now
-                    } else if (lastTime == 0L) {
-                        lastBytes = soFar
-                        lastTime = now
-                    }
-                    cursor.close()
-                }
-            }
-            delay(500)
         }
     }
 
@@ -673,9 +690,7 @@ private fun AboutCard() {
             Spacer(modifier = Modifier.height(24.dp))
             // 检查更新按钮：状态驱动文案；发现新版本时切换为主色强调
             val isUpdateFound = updateState is UpdateState.Found
-            val isUpdateBusy = updateState == UpdateState.Checking ||
-                updateState is UpdateState.Downloading ||
-                updateState == UpdateState.Downloaded
+            val isUpdateBusy = updateState == UpdateState.Checking
             FilledTonalButton(
                 onClick = onUpdateClick,
                 enabled = !isUpdateBusy,
@@ -700,8 +715,6 @@ private fun AboutCard() {
                             UpdateState.Latest -> "已是最新版本"
                             is UpdateState.Found ->
                                 "发现新版本 ${s.release.version}，点击下载"
-                            is UpdateState.Downloading -> "下载中…"
-                            UpdateState.Downloaded -> "已下载，请在通知栏安装"
                             UpdateState.Error -> "检查失败，点击重试"
                         },
                         textAlign = TextAlign.Center,
@@ -716,38 +729,6 @@ private fun AboutCard() {
                             .size(18.dp),
                     )
                 }
-            }
-            // 下载中：前台进度条 + 百分比 + 速度
-            when (updateState) {
-                is UpdateState.Downloading -> {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LinearProgressIndicator(
-                            progress = { downloadProgress },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "${(downloadProgress * 100).toInt()}% · ${formatSpeed(downloadSpeed)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                UpdateState.Downloaded -> {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "下载完成，请从通知栏点击安装",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                else -> {}
             }
             Spacer(modifier = Modifier.height(10.dp))
             // GitHub 开源地址
@@ -782,6 +763,150 @@ private fun AboutCard() {
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
+        }
+    }
+
+    // 下载更新弹窗：进度/速度实时展示，完成后提供安装入口
+    if (showDownloadDialog) {
+        DownloadDialog(
+            version = activeRelease?.version ?: "",
+            progress = downloadProgress,
+            speed = downloadSpeed,
+            pending = downloadPending,
+            failed = downloadFailed,
+            completed = downloadedFile != null,
+            onCancel = onCancelDownload,
+            onInstall = onInstallDownload,
+            onDismiss = {
+                // 下载中不可直接点外部关闭（须先取消）；完成/失败后可关闭
+                if (downloadedFile != null || downloadFailed != null) {
+                    showDownloadDialog = false
+                }
+            },
+        )
+    }
+}
+
+// ===================== 下载更新弹窗 =====================
+@Composable
+private fun DownloadDialog(
+    version: String,
+    progress: Float,
+    speed: Long,
+    pending: Boolean,
+    failed: String?,
+    completed: Boolean,
+    onCancel: () -> Unit,
+    onInstall: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // 标题
+                Text(
+                    text = "下载更新",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "DeepSeek 余额查询 v$version",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                when {
+                    // 下载失败
+                    failed != null -> {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = failed,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        FilledTonalButton(
+                            onClick = onDismiss,
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            Text("关闭")
+                        }
+                    }
+                    // 下载完成：可安装或稍后
+                    completed -> {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "下载完成，可以开始安装",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = onDismiss) {
+                                Text("稍后")
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            FilledTonalButton(
+                                onClick = onInstall,
+                                shape = MaterialTheme.shapes.medium,
+                            ) {
+                                Text("安装")
+                            }
+                        }
+                    }
+                    // 下载中：进度 + 速度 + 取消
+                    else -> {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = when {
+                                pending -> "排队中…"
+                                progress > 0f -> "${(progress * 100).toInt()}% · ${formatSpeed(speed)}"
+                                else -> "准备中…"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        OutlinedButton(
+                            onClick = onCancel,
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            Text("取消")
+                        }
+                    }
+                }
+            }
         }
     }
 }

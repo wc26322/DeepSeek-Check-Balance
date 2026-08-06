@@ -1,7 +1,10 @@
 package com.deepseek.balance.ui
 
+import android.app.DownloadManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,6 +12,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -28,6 +33,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.deepseek.balance.network.LatestRelease
+import com.deepseek.balance.network.UpdateChecker
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -482,6 +490,35 @@ private fun RealtimeCard(
     }
 }
 
+// ===================== 检查更新 =====================
+private sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object Latest : UpdateState
+    data class Found(val release: LatestRelease) : UpdateState
+    data object Error : UpdateState
+}
+
+/** 用系统 DownloadManager 下载 APK 到应用外部目录；下载完成通知栏会出现「打开」入口 */
+private fun downloadApk(context: android.content.Context, release: LatestRelease) {
+    val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as DownloadManager
+    val request = DownloadManager.Request(Uri.parse(release.apkUrl))
+        .setTitle("DeepSeek 余额查询 ${release.version}")
+        .setDescription("正在下载更新…")
+        .setMimeType("application/vnd.android.package-archive")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setDestinationInExternalFilesDir(
+            context,
+            Environment.DIRECTORY_DOWNLOADS,
+            "DeepSeekBalanceApp-${release.version}.apk",
+        )
+    try {
+        dm.enqueue(request)
+    } catch (e: Exception) {
+        Toast.makeText(context, "下载失败：${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
 // ===================== 关于 =====================
 @Composable
 private fun AboutCard() {
@@ -495,60 +532,139 @@ private fun AboutCard() {
         }
     }
     val githubUrl = "https://github.com/wc26322/DeepSeek-Check-Balance"
-    SettingsCard {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // 版本行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "版本",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(130.dp),
-                )
-                Text(
-                    text = versionName.ifBlank { "未知" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.End,
-                )
+
+    // 检查更新状态
+    var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+    val scope = rememberCoroutineScope()
+
+    val onUpdateClick: () -> Unit = {
+        when (val s = updateState) {
+            // 发现新版本：点击开始下载（无直链时打开 Release 页面兜底）
+            is UpdateState.Found -> {
+                val release = s.release
+                if (release.apkUrl.isBlank()) {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(UpdateChecker.releasePageUrl(release.tagName))),
+                    )
+                } else {
+                    downloadApk(context, release)
+                    Toast.makeText(context, "开始下载，完成后通知栏点击安装", Toast.LENGTH_SHORT).show()
+                }
             }
-            // 横线分隔
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant,
-                thickness = 1.dp,
-                modifier = Modifier.padding(vertical = 10.dp),
-            )
-            // GitHub 开源地址：值为仓库短名，普通数值风格，仅文字可点
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "GitHub开源地址",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "打开",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .clickable {
-                            try {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl)),
-                                )
-                            } catch (_: Exception) {
-                            }
+            is UpdateState.Checking -> { /* 忽略重复点击 */ }
+            // 空闲 / 已是最新 / 失败：点击触发（重新）检查
+            else -> {
+                updateState = UpdateState.Checking
+                scope.launch {
+                    updateState = try {
+                        val latest = UpdateChecker.checkLatest()
+                        if (UpdateChecker.isNewer(latest.version, versionName.ifBlank { "0" })) {
+                            UpdateState.Found(latest)
+                        } else {
+                            UpdateState.Latest
                         }
-                        .padding(vertical = 4.dp),
-                )
+                    } catch (e: Exception) {
+                        UpdateState.Error
+                    }
+                }
             }
+        }
+    }
+
+    SettingsCard {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // 版本号居中展示
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = versionName.ifBlank { "未知" },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "当前版本",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            // 检查更新按钮：状态驱动文案；发现新版本时切换为主色强调
+            val isUpdateFound = updateState is UpdateState.Found
+            FilledTonalButton(
+                onClick = onUpdateClick,
+                enabled = updateState != UpdateState.Checking,
+                colors = if (isUpdateFound) {
+                    ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    ButtonDefaults.filledTonalButtonColors()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                // 文字严格居中，图标绝对定位在左侧（不参与居中）
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = when (val s = updateState) {
+                            UpdateState.Idle -> "检查更新"
+                            UpdateState.Checking -> "检查中…"
+                            UpdateState.Latest -> "已是最新版本"
+                            is UpdateState.Found ->
+                                "发现新版本 ${s.release.version}，点击下载"
+                            UpdateState.Error -> "检查失败，点击重试"
+                        },
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 24.dp)
+                            .size(18.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            // GitHub 开源地址
+            OutlinedButton(
+                onClick = {
+                    try {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(githubUrl)),
+                        )
+                    } catch (_: Exception) {
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                // 文字严格居中，图标绝对定位在左侧（不参与居中）
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "GitHub开源地址",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 24.dp)
+                            .size(18.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }

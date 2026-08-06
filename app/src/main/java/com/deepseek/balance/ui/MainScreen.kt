@@ -49,6 +49,8 @@ fun MainScreen(
     usage: UsageData?,
     usageError: String?,
     hasWebToken: Boolean,
+    webTokenInvalid: Boolean = false,
+    onWebLoginClick: () -> Unit = {},
     loadRangeDaily: suspend (start: java.time.LocalDate, end: java.time.LocalDate) -> List<com.deepseek.balance.model.ModelDailyUsage>? =
         { _, _ -> null },
     alertEnabled: Boolean = false,
@@ -187,6 +189,8 @@ fun MainScreen(
                     usage = usage,
                     usageError = usageError,
                     hasWebToken = hasWebToken,
+                    webTokenInvalid = webTokenInvalid,
+                    onReLoginClick = onWebLoginClick,
                     isLoading = isLoading,
                     onSettingsClick = onSettingsClick,
                     loadRangeDaily = loadRangeDaily,

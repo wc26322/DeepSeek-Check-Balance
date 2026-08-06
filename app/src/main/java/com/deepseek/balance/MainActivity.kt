@@ -347,6 +347,8 @@ private fun BalanceAppContent(
         mutableStateOf(initial)
     }
     var usageError by remember { mutableStateOf<String?>(null) }
+    // 网页令牌是否已失效（HTTP 401/403 或业务码 40003）：失效时在主界面显示「重新登录」引导
+    var webTokenInvalid by remember { mutableStateOf(false) }
 
     // 每次进入前台时自动刷新
     var refreshVersion by remember { mutableStateOf(0) }
@@ -400,8 +402,15 @@ private fun BalanceAppContent(
                 val u = uj.await()
                 if (b is Exception) balanceErr = b.message ?: "余额查询失败"
                 else if (b is com.deepseek.balance.model.BalanceResponse) balanceResp = b
-                if (u is Exception) usageErr = u.message ?: "用量查询失败"
-                else if (u is com.deepseek.balance.model.UsageData) usageResp = u
+                if (u is Exception) {
+                    usageErr = u.message ?: "用量查询失败"
+                    // 令牌失效（HTTP 401/403 或业务码 40003）→ 标记，UI 显示「重新登录」引导
+                    if (u is com.deepseek.balance.network.ApiException &&
+                        u.code in TOKEN_INVALID_CODES
+                    ) {
+                        webTokenInvalid = true
+                    }
+                } else if (u is com.deepseek.balance.model.UsageData) usageResp = u
             }
 
             if (balanceResp != null) {
@@ -412,9 +421,13 @@ private fun BalanceAppContent(
             }
             if (balanceErr != null && showErrors) errorMessage = balanceErr
 
-            usage = usageResp
-            if (usageResp != null) usageError = null
-            // 静默刷新失败时保留占位/旧数据（与余额一致），手动刷新才显示错误
+            // 静默刷新失败时保留占位/旧数据（与余额一致）：仅成功时才替换，失败不清空
+            if (usageResp != null) {
+                usage = usageResp
+                usageError = null
+                webTokenInvalid = false
+            }
+            // 手动刷新才显示错误
             if (usageErr != null && showErrors) usageError = usageErr
             // 同步用量（总/今日 Tokens）到小组件存储
             if (usageResp != null) {
@@ -517,6 +530,8 @@ private fun BalanceAppContent(
                     usage = usage,
                     usageError = usageError,
                     hasWebToken = webToken.isNotBlank(),
+                    webTokenInvalid = webTokenInvalid,
+                    onWebLoginClick = { showWebLogin = true },
                     loadRangeDaily = loadRangeDaily,
                     alertEnabled = alertEnabled,
                     alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
@@ -587,6 +602,9 @@ private fun BalanceAppContent(
     }
 }
 
+/** 网页令牌失效的错误码：HTTP 401/403（fetchJson）与业务码 40003（bizData，Authorization Failed） */
+private val TOKEN_INVALID_CODES = setOf(401, 403, 40003)
+
 /** 冷启动占位用量数据：结构与真实数据完全一致、数值全 0，渲染出真实卡片框架 */
 private fun placeholderUsage(): UsageData {
     // 近 7 天真实日期（MM-dd），数值全 0：柱状图显示空架子（无柱子），日期刻度正常
@@ -597,11 +615,18 @@ private fun placeholderUsage(): UsageData {
         apiCalls = 0,
         totalTokens = 0L,
         windowDays = 30,
-        byModel = listOf(ModelUsage("deepseek-chat", 0, 0L, 0.0)),
+        byModel = listOf(
+            ModelUsage("deepseek-v4-flash", 0, 0L, 0.0),
+            ModelUsage("deepseek-v4-pro", 0, 0L, 0.0),
+        ),
         byKey = listOf(),
         byModelDaily = listOf(
             ModelDailyUsage(
-                model = "deepseek-chat",
+                model = "deepseek-v4-flash",
+                daily = dates.map { DailyUsage(it, 0, 0L, 0L, 0L) },
+            ),
+            ModelDailyUsage(
+                model = "deepseek-v4-pro",
                 daily = dates.map { DailyUsage(it, 0, 0L, 0L, 0L) },
             ),
         ),

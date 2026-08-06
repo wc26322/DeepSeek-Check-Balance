@@ -251,27 +251,34 @@ private fun WebTokenCard(
             shape = MaterialTheme.shapes.medium,
         )
         Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = if (webToken.isNotBlank())
-                "网页令牌已保存，返回主界面即可查询用量"
-            else
-                "获取方式：登录 platform.deepseek.com → F12 → Application → Local Storage → 复制 userToken 的值",
-            style = MaterialTheme.typography.bodySmall,
-            color = if (webToken.isNotBlank())
-                MaterialTheme.colorScheme.primary
-            else
-                MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        // 网页一键登录：在 WebView 内登录后自动抓取 userToken，免去手动复制
-        Button(
-            onClick = onWebLoginClick,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-        ) {
-            Text("网页一键登录（免手动复制）")
-        }
-        if (webToken.isNotBlank()) {
+        if (webToken.isBlank()) {
+            // 未配置令牌：主推一键登录，下方附手动获取说明
+            Button(
+                onClick = onWebLoginClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text("网页一键登录（免手动复制）")
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "获取方式",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "登录 platform.deepseek.com → F12 → Application → Local Storage → 复制 userToken 的值",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            // 已配置：显示保存状态 + 清除入口，不再显示一键登录
+            Text(
+                text = "网页令牌已保存，返回主界面即可查询用量",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
             Spacer(modifier = Modifier.height(4.dp))
             TextButton(
                 onClick = { onWebTokenChange("") },
@@ -365,7 +372,7 @@ private fun AlertCard(
                         Text("元", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
-                shape = MaterialTheme.shapes.small,
+                shape = MaterialTheme.shapes.medium,
                 supportingText = { Text("范围：¥1 ~ ¥5,000,000") },
             )
         }
@@ -445,7 +452,7 @@ private fun RealtimeCard(
                         .menuAnchor()
                         .fillMaxWidth(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = intervalExpanded) },
-                    shape = MaterialTheme.shapes.small,
+                    shape = MaterialTheme.shapes.medium,
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                 )
                 ExposedDropdownMenu(
@@ -469,7 +476,7 @@ private fun RealtimeCard(
             Text(
                 text = "开启后状态栏会显示一个常驻通知（低重要级，不发声），用于保持后台刷新。",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
         }
     }

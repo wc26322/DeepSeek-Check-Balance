@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -81,6 +82,8 @@ internal fun UsageSection(
     usage: UsageData?,
     usageError: String?,
     hasWebToken: Boolean,
+    webTokenInvalid: Boolean = false,
+    onReLoginClick: () -> Unit = {},
     isLoading: Boolean = false,
     onSettingsClick: () -> Unit = {},
     loadRangeDaily: suspend (start: java.time.LocalDate, end: java.time.LocalDate) -> List<ModelDailyUsage>? =
@@ -92,11 +95,20 @@ internal fun UsageSection(
     // 错误优先
     if (usageError != null) {
         ErrorCard(message = usageError)
-        if (!hasWebToken) {
+        if (webTokenInvalid) {
+            Spacer(modifier = Modifier.height(12.dp))
+            TokenExpiredHint(onReLoginClick = onReLoginClick)
+        } else if (!hasWebToken) {
             Spacer(modifier = Modifier.height(12.dp))
             NoTokenHint(onSettingsClick = onSettingsClick)
         }
         return
+    }
+
+    // 令牌已失效（自动刷新静默失败）：数据仍保留显示，上方引导重新登录
+    if (webTokenInvalid) {
+        TokenExpiredHint(onReLoginClick = onReLoginClick)
+        Spacer(modifier = Modifier.height(16.dp))
     }
 
     // 未配置网页令牌
@@ -191,6 +203,46 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("前往设置填写网页令牌")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "网页令牌已失效",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "用量数据来自网页后台，令牌过期后无法继续更新。请重新登录以恢复用量查询。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            TextButton(onClick = onReLoginClick) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("重新登录")
             }
         }
     }

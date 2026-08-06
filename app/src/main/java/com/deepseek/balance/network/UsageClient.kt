@@ -201,6 +201,11 @@ object UsageClient {
     private fun bizData(root: JSONObject): JSONObject {
         val code = root.optInt("code", -1)
         if (code != 0) {
+            // DeepSeek 网页接口鉴权失败：HTTP 200 + 业务码 40003（Authorization Failed）。
+            // 映射为带 code 的 ApiException，供上层识别「令牌失效」并引导重新登录。
+            if (code == 40003) {
+                throw ApiException("网页令牌无效或已过期，请重新获取", code = 40003)
+            }
             throw ApiException(root.optString("msg", "业务错误 code=$code"))
         }
         val data = root.optJSONObject("data") ?: throw ApiException("响应缺少 data 字段")

@@ -76,6 +76,20 @@ object UpdateChecker {
     fun releasePageUrl(tagName: String): String = RELEASES_PAGE_URL + tagName
 
     /**
+     * 下载加速镜像（2026-08 实测可用；官方直连慢/失败时自动切换）。
+     * 注意：APK 有系统签名校验，镜像内容被篡改时安装会被拒绝，信任风险可控。
+     */
+    private val DOWNLOAD_MIRRORS = listOf(
+        "https://gh-proxy.com/",
+        "https://gh.llkk.cc/",
+        "https://ghfast.top/",
+    )
+
+    /** 按优先级排列的下载地址：官方直链 + 加速镜像（AppDownloader 依次尝试） */
+    fun downloadSources(apkUrl: String): List<String> =
+        listOf(apkUrl) + DOWNLOAD_MIRRORS.map { it + apkUrl }
+
+    /**
      * 语义化版本比较：latest 是否比 current 新。
      * 逐段数字比较，段数不足按 0 补齐（如 "1.3" < "1.3.1"）。
      */

@@ -572,6 +572,7 @@ private fun AboutCard() {
     var downloadPending by remember { mutableStateOf(true) }
     var downloadFailed by remember { mutableStateOf<String?>(null) }
     var downloadedFile by remember { mutableStateOf<File?>(null) }
+    var downloadSource by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -585,29 +586,38 @@ private fun AboutCard() {
         downloadPending = true
         downloadFailed = null
         downloadedFile = null
+        downloadSource = ""
         val targetDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
         val target = File(targetDir, "DeepSeekBalanceApp-${release.version}.apk")
         downloadJob = scope.launch {
             var lastBytes = 0L
             var lastTime = 0L
             try {
-                AppDownloader.download(release.apkUrl, target) { soFar, total ->
-                    // 进度回调（IO 线程）：更新进度与差分速度
-                    downloadPending = false
-                    if (total > 0) {
-                        downloadProgress = (soFar.toFloat() / total).coerceIn(0f, 1f)
-                    }
-                    val now = System.currentTimeMillis()
-                    if (lastTime > 0 && now - lastTime >= 500) {
-                        val dt = now - lastTime
-                        downloadSpeed = if (dt > 0) (soFar - lastBytes) * 1000 / dt else 0L
-                        lastBytes = soFar
-                        lastTime = now
-                    } else if (lastTime == 0L) {
-                        lastBytes = soFar
-                        lastTime = now
-                    }
-                }
+                // 多源自动切换（官方直链 + 加速镜像），源间切换/中断后断点续传
+                AppDownloader.download(
+                    sources = UpdateChecker.downloadSources(release.apkUrl),
+                    targetFile = target,
+                    onSource = { url ->
+                        downloadSource = url.removePrefix("https://").substringBefore("/")
+                    },
+                    onProgress = { soFar, total ->
+                        // 进度回调（IO 线程）：更新进度与差分速度
+                        downloadPending = false
+                        if (total > 0) {
+                            downloadProgress = (soFar.toFloat() / total).coerceIn(0f, 1f)
+                        }
+                        val now = System.currentTimeMillis()
+                        if (lastTime > 0 && now - lastTime >= 500) {
+                            val dt = now - lastTime
+                            downloadSpeed = if (dt > 0) (soFar - lastBytes) * 1000 / dt else 0L
+                            lastBytes = soFar
+                            lastTime = now
+                        } else if (lastTime == 0L) {
+                            lastBytes = soFar
+                            lastTime = now
+                        }
+                    },
+                )
                 downloadedFile = target
             } catch (e: CancellationException) {
                 // 用户取消：关闭弹窗，保持「发现新版本」可重新下载
@@ -775,6 +785,7 @@ private fun AboutCard() {
             pending = downloadPending,
             failed = downloadFailed,
             completed = downloadedFile != null,
+            source = downloadSource,
             onCancel = onCancelDownload,
             onInstall = onInstallDownload,
             onDismiss = {
@@ -796,6 +807,7 @@ private fun DownloadDialog(
     pending: Boolean,
     failed: String?,
     completed: Boolean,
+    source: String,
     onCancel: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
@@ -897,6 +909,14 @@ private fun DownloadDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (source.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "下载源：$source",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            )
+                        }
                         Spacer(modifier = Modifier.height(20.dp))
                         OutlinedButton(
                             onClick = onCancel,

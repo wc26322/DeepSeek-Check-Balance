@@ -512,6 +512,8 @@ private fun enqueueDownload(context: android.content.Context, release: LatestRel
         .setDescription("正在下载更新…")
         .setMimeType("application/vnd.android.package-archive")
         .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        // 默认不允许计费网络（移动数据）下载，会导致任务一直排队；显式放行
+        .setAllowedOverMetered(true)
         .setDestinationInExternalFilesDir(
             context,
             Environment.DIRECTORY_DOWNLOADS,

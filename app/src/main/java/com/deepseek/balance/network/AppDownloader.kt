@@ -7,7 +7,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okio.Buffer
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -15,12 +14,13 @@ import java.util.concurrent.TimeUnit
 /**
  * 应用内下载器：OkHttp 流式下载到文件，支持进度回调与取消。
  * 不依赖系统 DownloadManager，由 UI 弹窗实时展示进度/速度。
+ * 网络配置保持默认（与 ApiClient/UsageClient 一致），不针对特定网络做特殊处理。
  */
 object AppDownloader {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
@@ -51,17 +51,19 @@ object AppDownloader {
                 }
                 val body = response.body ?: throw ApiException("响应体为空")
                 val total = body.contentLength()
-                val source = body.source()
                 targetFile.outputStream().use { out ->
-                    val buffer = Buffer()
-                    var downloaded = 0L
-                    while (true) {
-                        val read = source.read(buffer, 64 * 1024)
-                        if (read == -1L) break
-                        buffer.copyTo(out, read)
-                        downloaded += read
-                        onProgress(downloaded, total)
-                        coroutineContext.ensureActive()
+                    // 用 JDK InputStream 流式写入（避免 okio Buffer 的消费/复制陷阱）
+                    body.byteStream().use { input ->
+                        val buf = ByteArray(64 * 1024)
+                        var downloaded = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n == -1) break
+                            out.write(buf, 0, n)
+                            downloaded += n
+                            onProgress(downloaded, total)
+                            coroutineContext.ensureActive()
+                        }
                     }
                 }
                 targetFile
@@ -75,7 +77,7 @@ object AppDownloader {
                 targetFile.delete()
                 throw CancellationException("下载已取消")
             }
-            throw ApiException("网络错误: ${e.message}")
+            throw ApiException("网络连接失败，请检查网络后重试")
         } finally {
             currentCall = null
         }

@@ -59,3 +59,5 @@
 ## 开源
 
 本仓库包含完整的项目源码。任何人都可以审阅 `app/src/main/java/com/deepseek/balance/network/ApiClient.kt`（网络请求）与 `MainActivity.kt` / `WidgetRefresh.kt`（存储逻辑），确认没有任何数据上传行为。
+
+本项目以 [MIT 许可证](LICENSE) 开源，欢迎自由使用、修改与分发。

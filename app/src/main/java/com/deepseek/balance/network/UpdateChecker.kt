@@ -2,10 +2,12 @@ package com.deepseek.balance.network
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -121,6 +123,7 @@ object UpdateChecker {
         "https://gh-proxy.com/",
         "https://gh.llkk.cc/",
         "https://ghfast.top/",
+        "https://ghproxy.net/",
     )
 
     /** 检查源：官方 API → 加速镜像，逐个尝试直到成功 */
@@ -134,31 +137,55 @@ object UpdateChecker {
     /** 探测下载量：每个源下载前 128KB 用于测速（不可达的源也会很快判死） */
     private const val PROBE_BYTES = 128 * 1024
 
+    /** 单源探测总超时：连接慢/被墙的源在此后被强制判为不可达，避免拖慢整个选源流程 */
+    private const val PROBE_TIMEOUT_MS = 6_000L
+
+    /** 从 URL 提取展示名（镜像前缀域名 / 官方 github.com） */
+    private fun hostOf(url: String): String =
+        url.removePrefix("https://").removePrefix("http://").substringBefore("/").ifBlank { "未知" }
+
     /**
-     * 并发探测所有下载源的连通性与速度（Range 下载前 128KB 并计时）。
-     * 返回顺序与 [downloadSources] 一致；供设置页弹出「选择下载源」列表。
+     * 并发探测所有下载源的连通性与速度（Range 下载前 128KB 并计时），
+     * 单个源超时 [PROBE_TIMEOUT_MS] 即判不可达；顺序与 [downloadSources] 一致。
+     * [onResult] 在每完成一个源时回调（可能跨线程），供 UI 边测边展示。
      */
-    suspend fun probeDownloadSources(apkUrl: String): List<SourceProbe> = withContext(Dispatchers.IO) {
+    suspend fun probeDownloadSources(
+        apkUrl: String,
+        onResult: (SourceProbe) -> Unit = {},
+    ): List<SourceProbe> = withContext(Dispatchers.IO) {
         coroutineScope {
-            downloadSources(apkUrl).map { url -> async { probeOne(url) } }.awaitAll()
+            downloadSources(apkUrl).map { url ->
+                async {
+                    val probe = try {
+                        withTimeout(PROBE_TIMEOUT_MS) { probeOne(url) }
+                    } catch (e: TimeoutCancellationException) {
+                        SourceProbe(url, hostOf(url), reachable = false, speedKBps = 0)
+                    }
+                    onResult(probe)
+                    probe
+                }
+            }.awaitAll()
         }
     }
 
-    /** 单源探测：Range 请求前 128KB，实测吞吐；任何异常（超时/连接失败/非 2xx）视为不可达 */
+    /**
+     * 单源探测：Range 请求前 128KB，只统计 body 传输耗时（DNS/连接/TLS/首字节不算入，
+     * 否则连接慢的源会得到虚低的速度）；任何异常（超时/连接失败/非 2xx）视为不可达。
+     */
     private fun probeOne(url: String): SourceProbe {
-        val host = url.removePrefix("https://").substringBefore("/").ifBlank { "未知" }
         val request = Request.Builder()
             .url(url)
             .header("Range", "bytes=0-${PROBE_BYTES - 1}")
             .get()
             .build()
-        val start = System.currentTimeMillis()
         return try {
             client.newCall(request).execute().use { response ->
                 if (response.code != 200 && response.code != 206) {
-                    return@use SourceProbe(url, host, false, 0)
+                    return@use SourceProbe(url, hostOf(url), false, 0)
                 }
-                val body = response.body ?: return@use SourceProbe(url, host, false, 0)
+                val body = response.body ?: return@use SourceProbe(url, hostOf(url), false, 0)
+                // 计时从传输开始：读满 PROBE_BYTES 即停止
+                val startTransfer = System.currentTimeMillis()
                 val streamed = body.byteStream().use { input ->
                     val buf = ByteArray(64 * 1024)
                     var total = 0L
@@ -169,11 +196,11 @@ object UpdateChecker {
                     }
                     total
                 }
-                val elapsedMs = (System.currentTimeMillis() - start).coerceAtLeast(1)
-                SourceProbe(url, host, true, streamed * 1000 / elapsedMs / 1024)
+                val elapsedMs = (System.currentTimeMillis() - startTransfer).coerceAtLeast(1)
+                SourceProbe(url, hostOf(url), true, streamed * 1000 / elapsedMs / 1024)
             }
         } catch (e: Exception) {
-            SourceProbe(url, host, false, 0)
+            SourceProbe(url, hostOf(url), false, 0)
         }
     }
 

@@ -857,18 +857,30 @@ private fun AboutCard() {
     var downloadedFile by remember { mutableStateOf<File?>(null) }
     var downloadSource by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
-    // 下载源探测与选择：弹窗打开时并发测速，用户可点选任一可达源
+    // 下载源探测与选择：弹窗打开时并发测速，逐个上屏，用户可点选任一可达源
     var probes by remember { mutableStateOf<List<SourceProbe>>(emptyList()) }
+    val probeRows = remember { mutableStateListOf<SourceProbe?>() }
     var probing by remember { mutableStateOf(false) }
     var selectedSourceUrl by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    // 打开下载弹窗：立即并发探测所有源（官方 + 镜像）的连通性与速度，
+    // 打开下载弹窗：并发探测所有源（官方 + 镜像）的连通性与速度，每完成一个立刻上屏；
     // 测完自动选中第一个可达源（通常最快）；用户不满意可点其他行换源再下。
+    // 若上次已完整下载过同版本安装包（点过「稍后安装」），直接进入安装态，不再重新下载。
     val openDownload: (LatestRelease) -> Unit = download@ { release ->
         if (downloadJob?.isActive == true) return@download
         activeRelease = release
         showDownloadDialog = true
+        val targetDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        val target = File(targetDir, "DeepSeekBalanceApp-${release.version}.apk")
+        if (downloadedFile == target) {
+            // 复用上次下载好的安装包：仅供安装，跳过探测与下载
+            downloadFailed = null
+            downloadProgress = 0f
+            downloadSpeed = 0L
+            downloadSource = ""
+            return@download
+        }
         downloadProgress = 0f
         downloadSpeed = 0L
         downloadPending = true
@@ -876,13 +888,23 @@ private fun AboutCard() {
         downloadedFile = null
         downloadSource = ""
         probes = emptyList()
+        probeRows.clear()
         selectedSourceUrl = null
         scope.launch {
             probing = true
-            probes = UpdateChecker.probeDownloadSources(release.apkUrl)
+            val sources = UpdateChecker.downloadSources(release.apkUrl)
+            sources.forEach { probeRows.add(null) }  // 先占位「检测中…」
+            probes = UpdateChecker.probeDownloadSources(release.apkUrl) { probe ->
+                val idx = sources.indexOf(probe.url)
+                if (idx >= 0) {
+                    probeRows[idx] = probe
+                    // 自动选第一个可达源（排队顺序与 downloadSources 一致，官方优先）
+                    if (selectedSourceUrl == null && probe.reachable) {
+                        selectedSourceUrl = probe.url
+                    }
+                }
+            }
             probing = false
-            // 自动选第一个可达源（排队顺序与 downloadSources 一致，官方优先）
-            selectedSourceUrl = probes.firstOrNull { it.reachable }?.url
         }
     }
 
@@ -938,6 +960,14 @@ private fun AboutCard() {
                 downloadFailed = e.message ?: "下载失败"
             }
         }
+    }
+
+    // 点源行：仅改选中态，不立即下载（等用户点「开始下载」确认）
+    val selectSourceOnly: (SourceProbe) -> Unit = { probe -> selectedSourceUrl = probe.url }
+
+    // 确认下载：用当前选中源启动（探测是边测边填 probeRows，无需等全部完成）
+    val confirmDownloadSource: () -> Unit = {
+        probeRows.firstOrNull { it?.url == selectedSourceUrl }?.let { startDownloadWith(it) }
     }
 
     // 取消下载：中断网络 + 取消协程
@@ -1099,10 +1129,11 @@ private fun AboutCard() {
             completed = downloadedFile != null,
             source = downloadSource,
             downloading = downloadJob?.isActive == true,
-            probes = probes,
+            probes = probeRows,
             probing = probing,
             selectedSourceUrl = selectedSourceUrl,
-            onSelectSource = { probe -> startDownloadWith(probe) },
+            onSelectSource = selectSourceOnly,
+            onConfirmDownload = confirmDownloadSource,
             onRetryProbe = { activeRelease?.let { openDownload(it) } },
             onCancel = onCancelDownload,
             onInstall = onInstallDownload,
@@ -1127,10 +1158,11 @@ private fun DownloadDialog(
     completed: Boolean,
     source: String,
     downloading: Boolean,
-    probes: List<SourceProbe>,
+    probes: List<SourceProbe?>,
     probing: Boolean,
     selectedSourceUrl: String?,
     onSelectSource: (SourceProbe) -> Unit,
+    onConfirmDownload: () -> Unit,
     onRetryProbe: () -> Unit,
     onCancel: () -> Unit,
     onInstall: () -> Unit,
@@ -1249,7 +1281,7 @@ private fun DownloadDialog(
                             Text("取消")
                         }
                     }
-                    // 选择下载源：并发测速展示连通性与速度，点击即可用该源下载
+                    // 选择下载源：并发测速逐个上屏（未完成的行显示「检测中…」），点击可用该源下载
                     else -> {
                         Text(
                             text = "选择一个下载源",
@@ -1257,7 +1289,10 @@ private fun DownloadDialog(
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        if (probing) {
+                        val allDone = probes.none { it == null }
+                        val reachableCount = probes.count { it?.reachable == true }
+                        if (probing && probes.isEmpty()) {
+                            // 探测刚启动：源列表还没占位
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
                                 strokeWidth = 2.dp,
@@ -1268,31 +1303,60 @@ private fun DownloadDialog(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        } else if (allDone && reachableCount == 0) {
+                            Text(
+                                text = "所有下载源均不可达，请检查网络后重试",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(onClick = onRetryProbe) {
+                                Text("重新检测")
+                            }
                         } else {
-                            val reachableCount = probes.count { it.reachable }
-                            if (reachableCount == 0) {
-                                Text(
-                                    text = "所有下载源均不可达，请检查网络后重试",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                OutlinedButton(onClick = onRetryProbe) {
-                                    Text("重新检测")
-                                }
-                            } else {
-                                probes.forEach { probe ->
+                            probes.forEachIndexed { _, probe ->
+                                if (probe == null) {
+                                    // 尚未测完的源：占位行
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "检测中…",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                } else {
                                     SourceRow(
                                         probe = probe,
                                         selected = probe.url == selectedSourceUrl,
                                         enabled = probe.reachable,
                                         onClick = { onSelectSource(probe) },
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
+                        // 确认选择：选中可达源后启用，点击开始下载
+                        val selected = probes.firstOrNull { it?.url == selectedSourceUrl }
+                        FilledTonalButton(
+                            onClick = onConfirmDownload,
+                            enabled = selected?.reachable == true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                        ) {
+                            Text(if (selected?.reachable == true) "开始下载" else "请选择一个源")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         TextButton(onClick = onDismiss) {
                             Text("取消")
                         }

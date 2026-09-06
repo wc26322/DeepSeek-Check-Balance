@@ -2,6 +2,9 @@ package com.deepseek.balance.network
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,6 +18,14 @@ data class LatestRelease(
     val tagName: String,   // 如 "v1.3.2"
     val apkUrl: String,    // app-release.apk 下载直链（可能为空）
     val notes: String,     // Release 说明
+)
+
+/** 单个下载源的连通性/速度探测结果 */
+data class SourceProbe(
+    val url: String,        // 完整下载地址（含镜像前缀）
+    val host: String,       // 展示名，如 "GitHub 官方" / "gh-proxy.com"
+    val reachable: Boolean, // 探测请求是否成功
+    val speedKBps: Long,    // 实测吞吐（KB/s），不可达为 0
 )
 
 /**
@@ -119,6 +130,52 @@ object UpdateChecker {
     /** 按优先级排列的下载地址：官方直链 + 加速镜像（AppDownloader 依次尝试） */
     fun downloadSources(apkUrl: String): List<String> =
         listOf(apkUrl) + DOWNLOAD_MIRRORS.map { it + apkUrl }
+
+    /** 探测下载量：每个源下载前 128KB 用于测速（不可达的源也会很快判死） */
+    private const val PROBE_BYTES = 128 * 1024
+
+    /**
+     * 并发探测所有下载源的连通性与速度（Range 下载前 128KB 并计时）。
+     * 返回顺序与 [downloadSources] 一致；供设置页弹出「选择下载源」列表。
+     */
+    suspend fun probeDownloadSources(apkUrl: String): List<SourceProbe> = withContext(Dispatchers.IO) {
+        coroutineScope {
+            downloadSources(apkUrl).map { url -> async { probeOne(url) } }.awaitAll()
+        }
+    }
+
+    /** 单源探测：Range 请求前 128KB，实测吞吐；任何异常（超时/连接失败/非 2xx）视为不可达 */
+    private fun probeOne(url: String): SourceProbe {
+        val host = url.removePrefix("https://").substringBefore("/").ifBlank { "未知" }
+        val request = Request.Builder()
+            .url(url)
+            .header("Range", "bytes=0-${PROBE_BYTES - 1}")
+            .get()
+            .build()
+        val start = System.currentTimeMillis()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (response.code != 200 && response.code != 206) {
+                    return@use SourceProbe(url, host, false, 0)
+                }
+                val body = response.body ?: return@use SourceProbe(url, host, false, 0)
+                val streamed = body.byteStream().use { input ->
+                    val buf = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (total < PROBE_BYTES) {
+                        val n = input.read(buf)
+                        if (n == -1) break
+                        total += n
+                    }
+                    total
+                }
+                val elapsedMs = (System.currentTimeMillis() - start).coerceAtLeast(1)
+                SourceProbe(url, host, true, streamed * 1000 / elapsedMs / 1024)
+            }
+        } catch (e: Exception) {
+            SourceProbe(url, host, false, 0)
+        }
+    }
 
     /**
      * 语义化版本比较：latest 是否比 current 新。

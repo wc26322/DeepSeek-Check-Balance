@@ -9,6 +9,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,6 +48,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import com.deepseek.balance.network.AppDownloader
 import com.deepseek.balance.network.LatestRelease
+import com.deepseek.balance.network.SourceProbe
 import com.deepseek.balance.network.UpdateChecker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -854,10 +857,15 @@ private fun AboutCard() {
     var downloadedFile by remember { mutableStateOf<File?>(null) }
     var downloadSource by remember { mutableStateOf("") }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
+    // 下载源探测与选择：弹窗打开时并发测速，用户可点选任一可达源
+    var probes by remember { mutableStateOf<List<SourceProbe>>(emptyList()) }
+    var probing by remember { mutableStateOf(false) }
+    var selectedSourceUrl by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    // 启动应用内下载：弹窗显示进度，完成后可原地安装
-    val startDownload: (LatestRelease) -> Unit = download@ { release ->
+    // 打开下载弹窗：立即并发探测所有源（官方 + 镜像）的连通性与速度，
+    // 测完自动选中第一个可达源（通常最快）；用户不满意可点其他行换源再下。
+    val openDownload: (LatestRelease) -> Unit = download@ { release ->
         if (downloadJob?.isActive == true) return@download
         activeRelease = release
         showDownloadDialog = true
@@ -867,15 +875,39 @@ private fun AboutCard() {
         downloadFailed = null
         downloadedFile = null
         downloadSource = ""
+        probes = emptyList()
+        selectedSourceUrl = null
+        scope.launch {
+            probing = true
+            probes = UpdateChecker.probeDownloadSources(release.apkUrl)
+            probing = false
+            // 自动选第一个可达源（排队顺序与 downloadSources 一致，官方优先）
+            selectedSourceUrl = probes.firstOrNull { it.reachable }?.url
+        }
+    }
+
+    // 用指定源启动应用内下载：该源优先，其余源按原优先级作为失败兜底
+    val startDownloadWith: (SourceProbe) -> Unit = download@ { probe ->
+        val release = activeRelease
+        if (downloadJob?.isActive == true || release == null) return@download
+        selectedSourceUrl = probe.url
+        downloadProgress = 0f
+        downloadSpeed = 0L
+        downloadPending = true
+        downloadFailed = null
+        downloadedFile = null
+        downloadSource = ""
+        val all = UpdateChecker.downloadSources(release.apkUrl)
+        val sources = listOf(probe.url) + all.filter { it != probe.url }
         val targetDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
         val target = File(targetDir, "DeepSeekBalanceApp-${release.version}.apk")
         downloadJob = scope.launch {
             var lastBytes = 0L
             var lastTime = 0L
             try {
-                // 多源自动切换（官方直链 + 加速镜像），源间切换/中断后断点续传
+                // 多源自动切换（用户所选优先），源间切换/中断后断点续传
                 AppDownloader.download(
-                    sources = UpdateChecker.downloadSources(release.apkUrl),
+                    sources = sources,
                     targetFile = target,
                     onSource = { url ->
                         downloadSource = url.removePrefix("https://").substringBefore("/")
@@ -935,7 +967,7 @@ private fun AboutCard() {
                         Intent(Intent.ACTION_VIEW, Uri.parse(UpdateChecker.releasePageUrl(release.tagName))),
                     )
                 } else {
-                    startDownload(release)
+                    openDownload(release)
                 }
             }
             is UpdateState.Checking -> { /* 忽略重复点击 */ }
@@ -1056,7 +1088,7 @@ private fun AboutCard() {
         }
     }
 
-    // 下载更新弹窗：进度/速度实时展示，完成后提供安装入口
+    // 下载更新弹窗：测速选源 → 进度/速度 → 安装入口
     if (showDownloadDialog) {
         DownloadDialog(
             version = activeRelease?.version ?: "",
@@ -1066,11 +1098,17 @@ private fun AboutCard() {
             failed = downloadFailed,
             completed = downloadedFile != null,
             source = downloadSource,
+            downloading = downloadJob?.isActive == true,
+            probes = probes,
+            probing = probing,
+            selectedSourceUrl = selectedSourceUrl,
+            onSelectSource = { probe -> startDownloadWith(probe) },
+            onRetryProbe = { activeRelease?.let { openDownload(it) } },
             onCancel = onCancelDownload,
             onInstall = onInstallDownload,
             onDismiss = {
-                // 下载中不可直接点外部关闭（须先取消）；完成/失败后可关闭
-                if (downloadedFile != null || downloadFailed != null) {
+                // 下载中不可直接点外部关闭（须先取消）；选择源/完成/失败后可关闭
+                if (downloadJob?.isActive != true) {
                     showDownloadDialog = false
                 }
             },
@@ -1088,6 +1126,12 @@ private fun DownloadDialog(
     failed: String?,
     completed: Boolean,
     source: String,
+    downloading: Boolean,
+    probes: List<SourceProbe>,
+    probing: Boolean,
+    selectedSourceUrl: String?,
+    onSelectSource: (SourceProbe) -> Unit,
+    onRetryProbe: () -> Unit,
     onCancel: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
@@ -1171,7 +1215,7 @@ private fun DownloadDialog(
                         }
                     }
                     // 下载中：进度 + 速度 + 取消
-                    else -> {
+                    downloading -> {
                         LinearProgressIndicator(
                             progress = { progress },
                             modifier = Modifier
@@ -1205,8 +1249,103 @@ private fun DownloadDialog(
                             Text("取消")
                         }
                     }
+                    // 选择下载源：并发测速展示连通性与速度，点击即可用该源下载
+                    else -> {
+                        Text(
+                            text = "选择一个下载源",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        if (probing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "正在检测各源连通性与速度…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            val reachableCount = probes.count { it.reachable }
+                            if (reachableCount == 0) {
+                                Text(
+                                    text = "所有下载源均不可达，请检查网络后重试",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(onClick = onRetryProbe) {
+                                    Text("重新检测")
+                                }
+                            } else {
+                                probes.forEach { probe ->
+                                    SourceRow(
+                                        probe = probe,
+                                        selected = probe.url == selectedSourceUrl,
+                                        enabled = probe.reachable,
+                                        onClick = { onSelectSource(probe) },
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextButton(onClick = onDismiss) {
+                            Text("取消")
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/** 下载源行：名称 + 测速结果 + 单选态（不可达不可点） */
+@Composable
+private fun SourceRow(
+    probe: SourceProbe,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    val selectedBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (selected) selectedBg else MaterialTheme.colorScheme.surfaceContainerLowest)
+            .border(
+                width = 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape = shape,
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = probe.host,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+            Text(
+                text = if (enabled) "${probe.speedKBps} KB/s · 点击下载"
+                else "不可达",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (enabled) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.error,
+            )
+        }
+        RadioButton(
+            selected = selected,
+            enabled = enabled,
+            onClick = onClick,
+        )
     }
 }

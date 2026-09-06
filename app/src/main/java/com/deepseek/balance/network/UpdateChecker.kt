@@ -1,10 +1,12 @@
 package com.deepseek.balance.network
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /** GitHub 最新 Release 信息 */
@@ -25,21 +27,45 @@ object UpdateChecker {
     private const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"
     private const val RELEASES_PAGE_URL = "https://github.com/$REPO/releases/tag/"
 
+    // 单源 8s 超时：connect/read/write 快速判死，失败立刻切下一个源（官方直连在国内常被阻塞）
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .writeTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    /** 拉取最新 Release；网络/解析失败抛 ApiException */
+    /**
+     * 拉取最新 Release。多源依次尝试（官方 API → 加速镜像），任一源成功即返回；
+     * 全部失败抛最后一个异常（切源时优先传播取消，避免吞掉协程取消）。
+     * OkHttp 不读系统代理，官方 api.github.com 直连常被阻塞 → 必须有多源兜底。
+     */
     suspend fun checkLatest(): LatestRelease = withContext(Dispatchers.IO) {
+        var lastError: Exception? = null
+        for (url in checkSources()) {
+            try {
+                return@withContext fetchLatest(url)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw lastError ?: ApiException("获取版本信息失败")
+    }
+
+    /** 单个源请求 + 解析；网络/解析失败抛 ApiException */
+    private fun fetchLatest(url: String): LatestRelease {
         val request = Request.Builder()
-            .url(LATEST_URL)
+            .url(url)
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "DeepSeekBalanceApp")
             .get()
             .build()
-        val response = client.newCall(request).execute()
+        val response = try {
+            client.newCall(request).execute()
+        } catch (e: IOException) {
+            throw ApiException("网络连接失败，请检查网络后重试")
+        }
         val body = response.body?.string() ?: throw ApiException("响应体为空")
         if (!response.isSuccessful) {
             throw ApiException("获取版本信息失败 (${response.code})")
@@ -64,7 +90,7 @@ object UpdateChecker {
                 }
             }
         }
-        LatestRelease(
+        return LatestRelease(
             version = tag.removePrefix("v"),
             tagName = tag,
             apkUrl = apkUrl,
@@ -77,6 +103,7 @@ object UpdateChecker {
 
     /**
      * 下载加速镜像（2026-08 实测可用；官方直连慢/失败时自动切换）。
+     * 同时用于「检查更新」（前缀代理 api.github.com 请求）与 APK 下载。
      * 注意：APK 有系统签名校验，镜像内容被篡改时安装会被拒绝，信任风险可控。
      */
     private val DOWNLOAD_MIRRORS = listOf(
@@ -84,6 +111,10 @@ object UpdateChecker {
         "https://gh.llkk.cc/",
         "https://ghfast.top/",
     )
+
+    /** 检查源：官方 API → 加速镜像，逐个尝试直到成功 */
+    private fun checkSources(): List<String> =
+        listOf(LATEST_URL) + DOWNLOAD_MIRRORS.map { it + LATEST_URL }
 
     /** 按优先级排列的下载地址：官方直链 + 加速镜像（AppDownloader 依次尝试） */
     fun downloadSources(apkUrl: String): List<String> =

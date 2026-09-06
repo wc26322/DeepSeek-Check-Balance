@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
@@ -58,6 +59,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
 
+// 滑块拖动状态回调（NavGlassCard 提供，GlassSlider → LiquidSlider 透传）：
+// 拖动调参滑块时通知外层锁定页面滚动，避免跟随手指上下滑
+val LocalSliderDraggingChanged = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -80,6 +85,8 @@ fun SettingsScreen(
     navGlassTuning: NavGlassTuning,
     onNavGlassTuningChange: (NavGlassTuning) -> Unit,
 ) {
+    // 滑块正在拖动时锁定页面滚动：拖动调参滑块时防止页面跟着上下滑
+    var sliderDragging by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -105,6 +112,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            userScrollEnabled = !sliderDragging,
             contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -144,6 +152,7 @@ fun SettingsScreen(
                 NavGlassCard(
                     tuning = navGlassTuning,
                     onTuningChange = onNavGlassTuningChange,
+                    onDraggingChanged = { sliderDragging = it },
                 )
             }
             item(contentType = "about") {
@@ -166,6 +175,74 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+// ===================== 帮助问号 =====================
+/** 标题旁的小问号：点击弹出说明弹窗，用于收纳非必要的解释文字（减少页面小字） */
+@Composable
+private fun InfoTip(
+    description: String,
+    title: String = "",
+    modifier: Modifier = Modifier,
+) {
+    var show by remember { mutableStateOf(false) }
+    IconButton(
+        onClick = { show = true },
+        modifier = modifier
+            .size(20.dp)
+            .padding(0.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = "说明",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(15.dp),
+        )
+    }
+    if (show) {
+        AlertDialog(
+            onDismissRequest = { show = false },
+            title = { if (title.isNotBlank()) Text(title, style = MaterialTheme.typography.titleMedium) },
+            text = { Text(description, style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                TextButton(onClick = { show = false }) {
+                    Text("知道了")
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        )
+    }
+}
+
+/** 卡片标题行：标题 + 右侧小问号 */
+@Composable
+private fun CardTitleWithTip(title: String, tipDescription: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        InfoTip(description = tipDescription, title = title)
+    }
+}
+
+/** 卡片内统一的选项框：让每个开关/滑块等选项外形一致、间隔一致 */
+@Composable
+private fun OptionBox(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.35f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        content = content,
+    )
+}
+
 // ===================== API Key =====================
 @Composable
 private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
@@ -173,10 +250,9 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
     val focusManager = LocalFocusManager.current
 
     SettingsCard {
-        Text(
-            text = "API Key",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onBackground,
+        CardTitleWithTip(
+            title = "API Key",
+            tipDescription = "在 platform.deepseek.com/api_keys 页面创建。\n\nAPI Key 仅保存在本机（App 私有目录），不会上传到任何第三方服务器，用于调用官方余额接口。",
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
@@ -210,32 +286,24 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
             },
             shape = MaterialTheme.shapes.medium,
         )
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = if (apiKey.isNotBlank())
-                "API Key 已保存，返回主界面即可查询"
-            else
-                "在 platform.deepseek.com/api_keys 获取",
-            style = MaterialTheme.typography.bodySmall,
-            color = if (apiKey.isNotBlank())
-                MaterialTheme.colorScheme.primary
-            else
-                MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         if (apiKey.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
-            TextButton(
+            Spacer(modifier = Modifier.height(10.dp))
+            LiquidButton(
                 onClick = { onApiKeyChange("") },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("清除 API Key")
+                Text("清除 API Key", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "API Key 仅保存在本机，不会上传到任何第三方服务器。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            text = if (apiKey.isNotBlank()) "API Key 已保存，返回主界面即可查询"
+            else "在 platform.deepseek.com/api_keys 页面获取",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (apiKey.isNotBlank()) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -251,16 +319,9 @@ private fun WebTokenCard(
     val focusManager = LocalFocusManager.current
 
     SettingsCard {
-        Text(
-            text = "网页令牌（用量查询）",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "用于查询累计消费 / 请求数 / Tokens / 按模型 / 按 Key 等用量数据",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        CardTitleWithTip(
+            title = "网页令牌",
+            tipDescription = "用于查询用量数据（累计消费、请求次数、Tokens、按模型 / 按 Key 拆解）。\n\n获取方式：登录 platform.deepseek.com → 按 F12 → Application → Local Storage → 复制 userToken 的值；或直接使用「网页一键登录」。\n\n令牌为短期登录凭据、会过期；仅保存在本机，不上传任何第三方。",
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
@@ -296,46 +357,32 @@ private fun WebTokenCard(
         )
         Spacer(modifier = Modifier.height(10.dp))
         if (webToken.isBlank()) {
-            // 未配置令牌：主推一键登录，下方附手动获取说明
-            Button(
+            // 未配置令牌：主推一键登录
+            LiquidButton(
                 onClick = onWebLoginClick,
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
+                tint = MaterialTheme.colorScheme.primary,
             ) {
-                Text("网页一键登录（免手动复制）")
+                Text("网页一键登录（免手动复制）", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "获取方式",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "登录 platform.deepseek.com → F12 → Application → Local Storage → 复制 userToken 的值",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         } else {
-            // 已配置：显示保存状态 + 清除入口，不再显示一键登录
-            Text(
-                text = "网页令牌已保存，返回主界面即可查询用量",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            TextButton(
+            // 已配置：清除入口
+            LiquidButton(
                 onClick = { onWebTokenChange("") },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("清除网页令牌")
+                Text("清除网页令牌", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "网页令牌为短期登录凭据，会过期；仅保存在本机，不上传任何第三方。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            text = if (webToken.isNotBlank()) "网页令牌已保存，返回主界面即可查询用量"
+            else "登录网页端并一键登录后令牌自动获取",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (webToken.isNotBlank()) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -356,20 +403,22 @@ private fun AlertCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = "余额预警",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = if (enabled) "余额低于阈值时在主界面显示提醒" else "关闭",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Spacer(modifier = Modifier.width(4.dp))
+                InfoTip(
+                    description = "开启后，当账户总余额低于设定阈值时，主界面余额卡片会以黄色「低于预警线」状态提醒。",
+                    title = "余额预警",
                 )
             }
-            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+            LiquidToggle(selected = { enabled }, onSelect = onEnabledChange)
         }
 
         Column(
@@ -417,7 +466,6 @@ private fun AlertCard(
                     }
                 },
                 shape = MaterialTheme.shapes.medium,
-                supportingText = { Text("范围：¥1 ~ ¥5,000,000") },
             )
         }
     }
@@ -454,20 +502,22 @@ private fun RealtimeCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = "后台实时刷新",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = if (enabled) "按间隔自动更新小组件" else "关闭（仅手动/打开 App 时更新）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Spacer(modifier = Modifier.width(4.dp))
+                InfoTip(
+                    description = "开启后，App 会在后台按设定间隔自动拉取余额并刷新桌面小组件。\n\n运行期间状态栏会显示一条常驻通知（低重要级、不发声），用于维持后台服务不被系统回收。",
+                    title = "后台实时刷新",
                 )
             }
-            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+            LiquidToggle(selected = { enabled }, onSelect = onEnabledChange)
         }
 
         Column(
@@ -516,12 +566,7 @@ private fun RealtimeCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "开启后状态栏会显示一个常驻通知（低重要级，不发声），用于保持后台刷新。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }
@@ -598,32 +643,25 @@ private fun BackgroundImageCard(
     }
 
     SettingsCard {
-        Text(
-            text = "背景图片",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "选中的图片将作为全局背景，玻璃卡片会折射它（官方 demo 的壁纸玩法）；不设置则使用默认光斑背景。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        CardTitleWithTip(
+            title = "背景图片",
+            tipDescription = "选中的图片将作为全局背景，玻璃卡片、导航栏等会折射它（官方 demo 的壁纸玩法）。\n\n不设置时使用默认的多彩环境光斑背景。",
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Button(
+        LiquidButton(
             onClick = {
                 pickMedia.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
+            tint = MaterialTheme.colorScheme.primary,
         ) {
-            Text("选择背景图片")
+            Text("选择背景图片", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         }
         if (backgroundImagePath.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
-            TextButton(
+            LiquidButton(
                 onClick = {
                     val oldPath = backgroundImagePath
                     onBackgroundImageChange("")
@@ -633,9 +671,8 @@ private fun BackgroundImageCard(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
             ) {
-                Text("恢复默认光斑背景")
+                Text("恢复默认光斑背景", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
         }
     }
@@ -645,61 +682,63 @@ private fun BackgroundImageCard(
 private fun NavGlassCard(
     tuning: NavGlassTuning,
     onTuningChange: (NavGlassTuning) -> Unit,
+    onDraggingChanged: (Boolean) -> Unit,
 ) {
     // 导航栏液态玻璃调参卡：滑块实时生效（拖动即改 BottomTabs 效果参数），并持久化
-    SettingsCard {
-        Text(
-            "导航栏玻璃效果",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "调整底部玻璃栏和滑块的液态玻璃质感，改动立即生效",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+    // 拖动回调经 CompositionLocal 下发：内部的 GlassSlider → LiquidSlider 直接读取
+    CompositionLocalProvider(LocalSliderDraggingChanged provides onDraggingChanged) {
+        SettingsCard {
+        CardTitleWithTip(
+            title = "导航栏玻璃效果",
+            tipDescription = "底部玻璃栏和滑块的全部液态玻璃参数：边缘扭曲（带宽/强度）、背景模糊、玻璃底色、滑块磨砂、按住外移、边缘模糊、彩色色散，以及切换手感（粘滞/量化/震动）。\n\n所有滑块均实时生效并自动保存。",
         )
         Spacer(modifier = Modifier.height(12.dp))
 
         // 彩色色散边开关
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("彩色色散边", fontSize = 15.sp)
-                Text(
-                    "滑块边缘的彩虹色散",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        OptionBox {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("彩色色散边", fontSize = 15.sp)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    InfoTip(description = "滑块边缘的彩色色散（彩虹边），渐变更柔和的玻璃质感。", title = "彩色色散边")
+                }
+                LiquidToggle(
+                    selected = { tuning.chromaticAberration },
+                    onSelect = { onTuningChange(tuning.copy(chromaticAberration = it)) },
                 )
             }
-            Switch(
-                checked = tuning.chromaticAberration,
-                onCheckedChange = { onTuningChange(tuning.copy(chromaticAberration = it)) },
-            )
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // 段落震动开关
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("段落震动反馈", fontSize = 15.sp)
-                Text(
-                    "拖动滑块跨越档位时轻震动一下",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        OptionBox {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("段落震动反馈", fontSize = 15.sp)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    InfoTip(description = "拖动滑块跨越档位时轻震动一下，增强档位手感。", title = "段落震动反馈")
+                }
+                LiquidToggle(
+                    selected = { tuning.detentHaptics },
+                    onSelect = { onTuningChange(tuning.copy(detentHaptics = it)) },
                 )
             }
-            Switch(
-                checked = tuning.detentHaptics,
-                onCheckedChange = { onTuningChange(tuning.copy(detentHaptics = it)) },
-            )
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         GlassSlider(
             label = "边缘扭曲带宽",
@@ -782,12 +821,12 @@ private fun NavGlassCard(
             onChange = { onTuningChange(tuning.copy(detentQuantize = it)) },
         )
 
-        TextButton(
+        LiquidButton(
             onClick = { onTuningChange(NavGlassTuning()) },
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
         ) {
-            Text("恢复默认")
+            Text("恢复默认", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        }
         }
     }
 }
@@ -802,33 +841,35 @@ private fun GlassSlider(
     onChange: (Float) -> Unit,
 ) {
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Text(label, fontSize = 15.sp)
+        OptionBox {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // 标签 + 说明问号（hint 收纳进弹窗，不再占小字行）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, fontSize = 15.sp)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    InfoTip(description = hint, title = label)
+                }
+                // 实时数值：dp 或百分比
                 Text(
-                    hint,
-                    fontSize = 11.sp,
+                    if (unit == "%") "${(value * 100).roundToInt()}%" else "${value.roundToInt()} $unit",
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            // 实时数值：dp 或百分比
-            Text(
-                if (unit == "%") "${(value * 100).roundToInt()}%" else "${value.roundToInt()} $unit",
-                fontSize = 13.sp,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            LiquidSlider(
+                value = { value },
+                onValueChange = onChange,
+                valueRange = valueRange,
+                onDraggingChanged = LocalSliderDraggingChanged.current,
             )
         }
-        Slider(
-            value = value,
-            onValueChange = onChange,
-            valueRange = valueRange,
-        )
     }
-    Spacer(modifier = Modifier.height(4.dp))
+    Spacer(modifier = Modifier.height(12.dp))
 }
 
 @Composable
@@ -1042,21 +1083,11 @@ private fun AboutCard() {
             Spacer(modifier = Modifier.height(24.dp))
             // 检查更新按钮：状态驱动文案；发现新版本时切换为主色强调
             val isUpdateFound = updateState is UpdateState.Found
-            val isUpdateBusy = updateState == UpdateState.Checking
-            FilledTonalButton(
+            LiquidButton(
                 onClick = onUpdateClick,
-                enabled = !isUpdateBusy,
-                colors = if (isUpdateFound) {
-                    ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    ButtonDefaults.filledTonalButtonColors()
-                },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                contentPadding = PaddingValues(0.dp),
+                tint = if (isUpdateFound) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.35f),
             ) {
                 // 文字严格居中，图标绝对定位在左侧（不参与居中）
                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -1084,7 +1115,7 @@ private fun AboutCard() {
             }
             Spacer(modifier = Modifier.height(10.dp))
             // GitHub 开源地址
-            OutlinedButton(
+            LiquidButton(
                 onClick = {
                     try {
                         context.startActivity(
@@ -1094,8 +1125,6 @@ private fun AboutCard() {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 // 文字严格居中，图标绝对定位在左侧（不参与居中）
                 Box(modifier = Modifier.fillMaxWidth()) {

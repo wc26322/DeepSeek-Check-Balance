@@ -252,7 +252,7 @@ internal fun BottomTabs(
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScale = 78f / 56f,
+                pressedScale = 1.2f,
                 // 按住栏上任意位置（手势层覆盖整条栏）：滑块立刻弹簧快滑到手指位置（Q 弹抓取）。
                 // 参数 down 即手指按下位置（Offset，手势层全栏宽坐标系）。
                 // 减 0.5 让胶囊【中心】对准手指：胶囊渲染左缘 = 4dp + value×tabWidth，
@@ -381,9 +381,9 @@ internal fun BottomTabs(
                     onDrawSurface = { drawRect(containerColor) }
                 )
                 .then(interactiveHighlight.modifier)
-                .height(64f.dp)
+                .height(72f.dp)
                 .fillMaxWidth()
-                .padding(4f.dp),
+                .padding(vertical = 8f.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = {
                 LiquidBottomTab(onClick = { onTabSelected(false) }) {

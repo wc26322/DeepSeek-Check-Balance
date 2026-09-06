@@ -12,8 +12,8 @@ android {
         applicationId = "com.deepseek.balance"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.3.3.5"
+        versionCode = 13
+        versionName = "1.4"
 
         // 网络安全：允许明文传输（仅用于 API 调用）
         vectorDrawables {
@@ -77,6 +77,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // 液态玻璃效果（io.github.kyant0:backdrop，Apache-2.0）；shapes 需显式声明——backdrop 只把它列为 runtime 依赖
+    implementation("io.github.kyant0:backdrop:2.0.1")
+    implementation("io.github.kyant0:shapes:1.2.1")
 
     // 网络请求 - OkHttp
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

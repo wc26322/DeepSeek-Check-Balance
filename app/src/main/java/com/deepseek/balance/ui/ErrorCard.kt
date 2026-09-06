@@ -12,13 +12,11 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun ErrorCard(message: String) {
     Spacer(modifier = Modifier.height(24.dp))
-    ElevatedCard(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        cornerRadius = 16.dp,
+        // errorContainer 半透明叠在玻璃表面：保留错误语义红色，又有玻璃质感
+        surfaceColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

@@ -170,13 +170,9 @@ internal fun UsageSection(
 
 @Composable
 private fun NoTokenHint(onSettingsClick: () -> Unit) {
-    ElevatedCard(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -210,13 +206,9 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
 
 @Composable
 private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
-    ElevatedCard(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -252,13 +244,9 @@ private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
 
 @Composable
 private fun UsageOverviewCard(usage: UsageData) {
-    ElevatedCard(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -337,13 +325,9 @@ private fun UsageListCard(
     rows: List<UsageRowData>,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
-    ElevatedCard(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -568,13 +552,9 @@ private fun DailyUsageCard(
         displayDaily.lastOrNull()?.let { selectedDate = it.date }
     }
 
-    ElevatedCard(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -1280,13 +1260,10 @@ private fun formatAxis(v: Long): String = when {
 /** 选中天的明细面板：显示在柱状图下方 */
 @Composable
 private fun DayDetail(day: DailyUsage, modifier: Modifier = Modifier) {
-    ElevatedCard(
+    LiquidCard(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        cornerRadius = 16.dp, // 嵌套明细面板：小圆角保持与外层玻璃卡(32dp)的层级
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(

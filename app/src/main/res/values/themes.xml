@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.DeepSeekBalance" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#FFF5F7FA</item>
-        <item name="android:navigationBarColor">#FFF5F7FA</item>
+        <!-- edge-to-edge：状态栏/导航栏透明，背景层（自定义图片/光斑）延伸到系统栏后面。
+             实际生效以 MainActivity 里 enableEdgeToEdge 为准，这里保证启动瞬间不闪灰条 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

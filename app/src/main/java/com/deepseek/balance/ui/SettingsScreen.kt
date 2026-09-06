@@ -6,6 +6,9 @@ import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,9 +48,12 @@ import com.deepseek.balance.network.AppDownloader
 import com.deepseek.balance.network.LatestRelease
 import com.deepseek.balance.network.UpdateChecker
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +72,10 @@ fun SettingsScreen(
     onWidgetRealtimeChange: (Boolean) -> Unit,
     widgetIntervalSec: Int,
     onWidgetIntervalSecChange: (Int) -> Unit,
+    backgroundImagePath: String,
+    onBackgroundImageChange: (String) -> Unit,
+    navGlassTuning: NavGlassTuning,
+    onNavGlassTuningChange: (NavGlassTuning) -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -79,17 +90,19 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    // 背景透明：透出环境彩色光斑
+                    containerColor = Color.Transparent,
                 ),
             )
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        // 背景透明：透出录制层内的环境彩色光斑（玻璃效果的色彩来源）
+        containerColor = Color.Transparent,
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(contentType = "api") {
@@ -118,6 +131,18 @@ fun SettingsScreen(
                     onIntervalSecChange = onWidgetIntervalSecChange,
                 )
             }
+            item(contentType = "background") {
+                BackgroundImageCard(
+                    backgroundImagePath = backgroundImagePath,
+                    onBackgroundImageChange = onBackgroundImageChange,
+                )
+            }
+            item(contentType = "navglass") {
+                NavGlassCard(
+                    tuning = navGlassTuning,
+                    onTuningChange = onNavGlassTuningChange,
+                )
+            }
             item(contentType = "about") {
                 AboutCard()
             }
@@ -127,15 +152,12 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer(), // 缓存整卡(含阴影)为硬件层，滚动时只平移、不重绘阴影模糊
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+    // 官方玻璃卡容器（LiquidCard = LazyScrollContainerContent 配方 + LiquidButton 的 surfaceColor）。
+    // surfaceColor 半透明叠在玻璃表面：保留原 surfaceContainerLowest 的可读性，又透出光斑折射。
+    LiquidCard(
+        modifier = Modifier.fillMaxWidth(),
+        // 0.3：薄蒙层保文字可读，同时让光斑折射透出来（0.6 会把玻璃感盖死）
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp), content = content)
     }
@@ -548,6 +570,264 @@ private fun installApk(context: android.content.Context, file: File) {
 }
 
 // ===================== 关于 =====================
+// ===================== 背景图片 =====================
+
+@Composable
+private fun BackgroundImageCard(
+    backgroundImagePath: String,
+    onBackgroundImageChange: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 官方 BackdropDemoScaffold 同款系统照片选择器（Photo Picker，无需存储权限）
+    val pickMedia = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                // 复制到 filesDir：不依赖系统授予的临时读取权限，重启后依然可用
+                val copied = withContext(Dispatchers.IO) {
+                    copyUriToBackgroundFile(context, uri)
+                }
+                onBackgroundImageChange(copied ?: "")
+            }
+        }
+    }
+
+    SettingsCard {
+        Text(
+            text = "背景图片",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "选中的图片将作为全局背景，玻璃卡片会折射它（官方 demo 的壁纸玩法）；不设置则使用默认光斑背景。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = {
+                pickMedia.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Text("选择背景图片")
+        }
+        if (backgroundImagePath.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(
+                onClick = {
+                    val oldPath = backgroundImagePath
+                    onBackgroundImageChange("")
+                    // 顺带删除旧图文件，避免 filesDir 残留
+                    scope.launch {
+                        withContext(Dispatchers.IO) { deleteBackgroundFile(oldPath) }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text("恢复默认光斑背景")
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavGlassCard(
+    tuning: NavGlassTuning,
+    onTuningChange: (NavGlassTuning) -> Unit,
+) {
+    // 导航栏液态玻璃调参卡：滑块实时生效（拖动即改 BottomTabs 效果参数），并持久化
+    SettingsCard {
+        Text(
+            "导航栏玻璃效果",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            "调整底部玻璃栏和滑块的液态玻璃质感，改动立即生效",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 彩色色散边开关
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("彩色色散边", fontSize = 15.sp)
+                Text(
+                    "滑块边缘的彩虹色散",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = tuning.chromaticAberration,
+                onCheckedChange = { onTuningChange(tuning.copy(chromaticAberration = it)) },
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 段落震动开关
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("段落震动反馈", fontSize = 15.sp)
+                Text(
+                    "拖动滑块跨越档位时轻震动一下",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = tuning.detentHaptics,
+                onCheckedChange = { onTuningChange(tuning.copy(detentHaptics = it)) },
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+
+        GlassSlider(
+            label = "边缘扭曲带宽",
+            hint = "滑块边缘玻璃的“厚度”",
+            value = tuning.refractionHeightDp,
+            valueRange = 0f..16f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(refractionHeightDp = it)) },
+        )
+        GlassSlider(
+            label = "边缘扭曲强度",
+            hint = "边缘内内容被弯曲的程度",
+            value = tuning.refractionAmountDp,
+            valueRange = 0f..24f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(refractionAmountDp = it)) },
+        )
+        GlassSlider(
+            label = "边缘模糊",
+            hint = "只雾化滑块边缘一圈（环宽=模糊值），中心不受影响",
+            value = tuning.edgeBlurDp,
+            valueRange = 0f..16f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(edgeBlurDp = it)) },
+        )
+        GlassSlider(
+            label = "背景模糊半径",
+            hint = "整条玻璃栏磨砂感",
+            value = tuning.blurDp,
+            valueRange = 0f..24f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(blurDp = it)) },
+        )
+        GlassSlider(
+            label = "玻璃底色浓度",
+            hint = "玻璃表面白色蒙层的浓淡",
+            value = tuning.containerAlpha,
+            valueRange = 0f..1f,
+            unit = "%",
+            onChange = { onTuningChange(tuning.copy(containerAlpha = it)) },
+        )
+        GlassSlider(
+            label = "滑块磨砂度",
+            hint = "雾化滑块内透出的内容，拉高可弱化“镜面”感",
+            value = tuning.capsuleBlurDp,
+            valueRange = 0f..16f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(capsuleBlurDp = it)) },
+        )
+        GlassSlider(
+            label = "按住时上下边框外移",
+            hint = "按住滑块时上下边框外移的幅度，负值=向内收缩",
+            value = tuning.pressStretchVDp,
+            valueRange = -24f..24f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(pressStretchVDp = it)) },
+        )
+        GlassSlider(
+            label = "按住时左右边框外移",
+            hint = "按住滑块时左右边框外移的幅度，负值=向内收缩",
+            value = tuning.pressStretchHDp,
+            valueRange = -24f..24f,
+            unit = "dp",
+            onChange = { onTuningChange(tuning.copy(pressStretchHDp = it)) },
+        )
+        GlassSlider(
+            label = "切换粘滞强度",
+            hint = "磁吸档位感：档位附近拖不动、越过中点弹过去",
+            value = tuning.detentStrength,
+            valueRange = 0f..0.9f,
+            unit = "%",
+            onChange = { onTuningChange(tuning.copy(detentStrength = it)) },
+        )
+        GlassSlider(
+            label = "段落量化",
+            hint = "拖动时按档位逐格跳变（0=连续跟手，1=纯档位）",
+            value = tuning.detentQuantize,
+            valueRange = 0f..1f,
+            unit = "%",
+            onChange = { onTuningChange(tuning.copy(detentQuantize = it)) },
+        )
+
+        TextButton(
+            onClick = { onTuningChange(NavGlassTuning()) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Text("恢复默认")
+        }
+    }
+}
+
+@Composable
+private fun GlassSlider(
+    label: String,
+    hint: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    unit: String,
+    onChange: (Float) -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(label, fontSize = 15.sp)
+                Text(
+                    hint,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // 实时数值：dp 或百分比
+            Text(
+                if (unit == "%") "${(value * 100).roundToInt()}%" else "${value.roundToInt()} $unit",
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onChange,
+            valueRange = valueRange,
+        )
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+}
+
 @Composable
 private fun AboutCard() {
     // 版本号直接读安装包（build.gradle 里的 versionName），与 APK 同步

@@ -11,17 +11,21 @@ import android.view.Choreographer
 import android.view.WindowManager
 import java.util.ArrayDeque
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -34,12 +38,18 @@ import com.deepseek.balance.model.ModelUsage
 import com.deepseek.balance.model.UsageData
 import com.deepseek.balance.network.ApiClient
 import com.deepseek.balance.network.UsageClient
+import com.deepseek.balance.ui.AppBackground
+import com.deepseek.balance.ui.BottomTabs
+import com.deepseek.balance.ui.NavGlassTuning
+import com.deepseek.balance.ui.LocalLiquidCardBackdrop
 import com.deepseek.balance.ui.MainScreen
 import com.deepseek.balance.ui.SettingsScreen
 import com.deepseek.balance.ui.WebLoginScreen
 import com.deepseek.balance.ui.theme.DeepSeekBalanceTheme
 import com.deepseek.balance.widget.BalanceWidgetProvider
 import com.deepseek.balance.widget.WidgetAutoRefreshService
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -125,6 +135,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 透明状态栏/导航栏（edge-to-edge）：背景层（自定义图片/光斑）延伸到系统栏后面，
+        // 系统图标深浅自动跟随系统明暗模式；
+        // 内容侧防遮挡：两屏内容吃 Scaffold 的 innerPadding，悬浮玻璃顶/底栏各自 *BarsPadding
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+        )
 
         jankLogFile = File(filesDir, "jank_log.txt")
         try {
@@ -308,6 +332,32 @@ private fun BalanceAppContent(
     }
     var widgetIntervalSec by remember {
         mutableStateOf(prefs.getInt("widget_interval_sec", 300))
+    }
+
+    // 自定义背景图片（filesDir 内的文件路径；空串 = 默认光斑背景）。
+    // 设置页选图后把图片复制进 filesDir，这里只存路径，重启后依然生效
+    var backgroundImage by remember {
+        mutableStateOf(prefs.getString("background_image", "") ?: "")
+    }
+
+    // 导航栏液态玻璃调参（设置页滑块实时调节，prefs 持久化）
+    var navGlassTuning by remember {
+        mutableStateOf(
+            NavGlassTuning(
+                refractionHeightDp = prefs.getFloat("nav_glass_refraction_h", 0f),
+                refractionAmountDp = prefs.getFloat("nav_glass_refraction_a", 0f),
+                blurDp = prefs.getFloat("nav_glass_blur", 8f),
+                containerAlpha = prefs.getFloat("nav_glass_alpha", 0.4f),
+                capsuleBlurDp = prefs.getFloat("nav_glass_capsule_blur", 0f),
+                pressStretchVDp = prefs.getFloat("nav_glass_press_stretch_v", 8f),
+                pressStretchHDp = prefs.getFloat("nav_glass_press_stretch_h", 0f),
+                edgeBlurDp = prefs.getFloat("nav_glass_edge_blur", 0f),
+                chromaticAberration = prefs.getBoolean("nav_glass_chroma", false),
+                detentStrength = prefs.getFloat("nav_glass_detent", 0.45f),
+                detentQuantize = prefs.getFloat("nav_glass_detent_quant", 0f),
+                detentHaptics = prefs.getBoolean("nav_glass_detent_haptic", true),
+            )
+        )
     }
 
     // 数据
@@ -499,13 +549,31 @@ private fun BalanceAppContent(
         showSettings = false
     }
 
+    // 液态玻璃：录制环境光斑/壁纸背景层（官方 BackdropDemoScaffold 中"壁纸"的同角色），
+    // 供全 app 玻璃组件（LiquidCard 卡片 + BottomTabs 底栏）折射。
+    // 对齐官方架构：所有玻璃组件只折射壁纸层、绝不折射滚动内容 ——
+    // ① 卡片/底栏在录制层之外（兄弟子树），无 prepareTree 递归风险；
+    // ② 壁纸层静止不随滚动重录，滚动零额外录制开销（此前两屏录制层是设置页滚动掉帧主因）；
+    // ③ 胶囊里不会出现"卡片内容副本"（之前被误认为多出一层的东西）。
+    val ambientBackdrop = rememberLayerBackdrop()
+
     // 两屏始终在组合树中，通过 graphicsLayer 位移驱动平滑滑动
     Box(
         modifier = Modifier
             .fillMaxSize()
             .clipToBounds(),
     ) {
+        // ---- 背景层（最底层，官方"壁纸"角色）：自定义图片或默认光斑 ----
+        // 录制修饰符挂在与所有玻璃组件（卡片/底栏）为兄弟关系的背景层上
+        AppBackground(
+            backgroundImagePath = backgroundImage,
+            modifier = Modifier.layerBackdrop(ambientBackdrop),
+        )
+
+        CompositionLocalProvider(LocalLiquidCardBackdrop provides ambientBackdrop) {
         // ---- 主界面 + 设置页（滑动切换） ----
+        // 两屏不录制进任何 backdrop（官方架构：玻璃只折射壁纸层）。
+        // 底栏 BottomTabs 改为消费 ambientBackdrop，与卡片同源。
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -583,9 +651,48 @@ private fun BalanceAppContent(
                         prefs.edit().putInt("widget_interval_sec", it).apply()
                         onRealtimeIntervalChange()
                     },
+                    backgroundImagePath = backgroundImage,
+                    onBackgroundImageChange = {
+                        backgroundImage = it
+                        prefs.edit().putString("background_image", it).apply()
+                    },
+                    navGlassTuning = navGlassTuning,
+                    onNavGlassTuningChange = { tuning ->
+                        navGlassTuning = tuning
+                        prefs.edit()
+                            .putFloat("nav_glass_refraction_h", tuning.refractionHeightDp)
+                            .putFloat("nav_glass_refraction_a", tuning.refractionAmountDp)
+                            .putFloat("nav_glass_blur", tuning.blurDp)
+                            .putFloat("nav_glass_alpha", tuning.containerAlpha)
+                            .putFloat("nav_glass_capsule_blur", tuning.capsuleBlurDp)
+                            .putFloat("nav_glass_press_stretch_v", tuning.pressStretchVDp)
+                            .putFloat("nav_glass_press_stretch_h", tuning.pressStretchHDp)
+                            .putFloat("nav_glass_edge_blur", tuning.edgeBlurDp)
+                            .putBoolean("nav_glass_chroma", tuning.chromaticAberration)
+                            .putFloat("nav_glass_detent", tuning.detentStrength)
+                            .putFloat("nav_glass_detent_quant", tuning.detentQuantize)
+                            .putBoolean("nav_glass_detent_haptic", tuning.detentHaptics)
+                            .apply()
+                    },
                 )
             }
         }
+        } // CompositionLocalProvider(LocalLiquidCardBackdrop)
+
+        // ---- 悬浮底部标签栏（首页/设置）：两屏从其下方滑过 ----
+        // 对齐官方：底栏玻璃折射壁纸层（ambientBackdrop），不折射滚动内容
+        BottomTabs(
+            backdrop = ambientBackdrop,
+            isSettings = showSettings,
+            onTabSelected = { showSettings = it },
+            tuning = navGlassTuning,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding() // edge-to-edge：避开透明导航栏/手势条
+                .padding(bottom = 16.dp)
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth(),
+        )
 
         // ---- 网页一键登录（WebView 全屏覆盖层） ----
         if (showWebLogin) {

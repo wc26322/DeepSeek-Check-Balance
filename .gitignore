@@ -16,6 +16,9 @@ local.properties
 .kotlin/
 .DS_Store
 
+# Tool output
+.workbuddy/
+
 # Native build
 .externalNativeBuild/
 .cxx/

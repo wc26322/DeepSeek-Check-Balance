@@ -23,6 +23,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.deepseek.balance.model.BalanceResponse
 import com.deepseek.balance.model.UsageData
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -107,11 +109,18 @@ fun MainScreen(
                     shape = MaterialTheme.shapes.large,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     contentColor = MaterialTheme.colorScheme.onSurface,
+                    // 底部悬浮标签栏占据下方约 80dp，提示条上移避免被遮
+                    modifier = Modifier.padding(bottom = 88.dp),
                 )
             }
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        // 背景透明：透出录制层内的环境彩色光斑（玻璃效果的色彩来源）
+        containerColor = Color.Transparent,
     ) { innerPadding ->
+        // 液态玻璃：backdrop 录制滚动内容供悬浮玻璃栏折射
+        val backdrop = rememberLayerBackdrop()
+
+        Box(modifier = Modifier.fillMaxSize()) {
         // 禁用系统 overscroll：顶部下拉由 PullToRefreshBox 独占（无回弹）；下拉刷新手势与系统回弹在系统层面冲突，故整体关闭
         CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
         PullToRefreshBox(
@@ -120,6 +129,7 @@ fun MainScreen(
             state = pullState,
             modifier = Modifier
                 .fillMaxSize()
+                .layerBackdrop(backdrop)
                 .padding(innerPadding),
             indicator = {
                 // Expressive 官方 LoadingIndicator：下拉时出现箭头 + 容器，松手后转圈，自带位移/缩放动画
@@ -136,15 +146,8 @@ fun MainScreen(
                     .padding(horizontal = 24.dp)
                     .verticalScroll(scrollState),
             ) {
-                Spacer(
-                    modifier = Modifier.height(
-                        WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
-                    )
-                )
-
-                TopBar(
-                    onSettingsClick = onSettingsClick,
-                )
+                // 顶部让出悬浮玻璃栏（8 顶距 + 56 栏高 + 8 间距），初始时余额卡片不被遮挡
+                Spacer(modifier = Modifier.height(72.dp))
 
                 AnimatedVisibility(
                     visible = result != null,
@@ -201,9 +204,22 @@ fun MainScreen(
                     ErrorCard(message = errorMessage)
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                // 尾部留白：让最后一张卡能完整滚出底部悬浮标签栏（栏 64 + 底距 16 + 间隙 16）
+                Spacer(modifier = Modifier.height(96.dp))
             }
         }
+        }
+
+        // 悬浮玻璃栏：声明在 PullToRefreshBox 之后 → z 序在上，滚动内容从其下方穿过
+        TopBar(
+            backdrop = backdrop,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding() // edge-to-edge：避开透明状态栏
+                .padding(top = 8.dp)
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth(),
+        )
         }
     }
 }

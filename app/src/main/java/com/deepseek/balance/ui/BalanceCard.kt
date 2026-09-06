@@ -32,29 +32,22 @@ internal fun BalanceCard(
     val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
     val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
 
-    // 渐变主卡：品牌蓝 → 深蓝，白色文字，顶部叠一层柔和高光
+    // 玻璃底 + 品牌渐变蒙层：容器为官方玻璃卡（LiquidCard），
+    // 品牌渐变作为半透明蒙层经官方 onDrawSurface 扩展点画在玻璃表面——
+    // alpha 再降一档（0.78/0.84），让光斑折射能透出来，否则渐变盖死玻璃感
     val primary = MaterialTheme.colorScheme.primary
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(
-            primary.copy(alpha = 0.95f),
-            primary.copy(red = (primary.red * 0.82f).coerceIn(0f, 1f), green = (primary.green * 0.82f).coerceIn(0f, 1f), blue = (primary.blue * 0.82f).coerceIn(0f, 1f)),
+            primary.copy(alpha = 0.78f),
+            primary.copy(red = (primary.red * 0.82f).coerceIn(0f, 1f), green = (primary.green * 0.82f).coerceIn(0f, 1f), blue = (primary.blue * 0.82f).coerceIn(0f, 1f), alpha = 0.84f),
         ),
     )
 
-    Card(
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent,
-        ),
+        surfaceOverlay = { drawRect(brush = gradientBrush) },
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.extraLarge)
-                .background(gradientBrush),
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -142,7 +135,6 @@ internal fun BalanceCard(
                     }
                 }
             }
-        }
     }
 
     Spacer(modifier = Modifier.height(8.dp))

@@ -15,13 +15,10 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
     Spacer(modifier = Modifier.height(24.dp))
-    ElevatedCard(
+    // 与「网页令牌」提示（NoTokenHint）同款液态玻璃容器：透出背景折射
+    LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),

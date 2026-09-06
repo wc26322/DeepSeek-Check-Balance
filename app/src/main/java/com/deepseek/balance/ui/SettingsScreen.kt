@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -85,8 +87,8 @@ fun SettingsScreen(
     navGlassTuning: NavGlassTuning,
     onNavGlassTuningChange: (NavGlassTuning) -> Unit,
 ) {
-    // 滑块正在拖动时锁定页面滚动：拖动调参滑块时防止页面跟着上下滑
-    var sliderDragging by remember { mutableStateOf(false) }
+    // 导航栏玻璃效果调参弹窗（渲染在 LazyColumn 之外，避免 item 无穷约束崩溃）
+    var navGlassDialogOpen by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -108,13 +110,16 @@ fun SettingsScreen(
         // 背景透明：透出录制层内的环境彩色光斑（玻璃效果的色彩来源）
         containerColor = Color.Transparent,
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
+        Box(
+            Modifier
                 .fillMaxSize()
                 .padding(padding),
-            userScrollEnabled = !sliderDragging,
+        ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
+            overscrollEffect = null, // 关闭触顶/触底回弹（overscroll）
         ) {
             item(contentType = "api") {
                 ApiKeyCard(apiKey, onApiKeyChange)
@@ -152,12 +157,21 @@ fun SettingsScreen(
                 NavGlassCard(
                     tuning = navGlassTuning,
                     onTuningChange = onNavGlassTuningChange,
-                    onDraggingChanged = { sliderDragging = it },
+                    onOpenDialog = { navGlassDialogOpen = true },
                 )
             }
             item(contentType = "about") {
                 AboutCard()
             }
+        }
+        // 调参弹窗：在 LazyColumn 之外渲染（覆盖设置页、留出底部导航栏），避免 item 无穷约束
+        if (navGlassDialogOpen) {
+            NavGlassDialog(
+                tuning = navGlassTuning,
+                onTuningChange = onNavGlassTuningChange,
+                onDismiss = { navGlassDialogOpen = false },
+            )
+        }
         }
     }
 }
@@ -682,151 +696,277 @@ private fun BackgroundImageCard(
 private fun NavGlassCard(
     tuning: NavGlassTuning,
     onTuningChange: (NavGlassTuning) -> Unit,
-    onDraggingChanged: (Boolean) -> Unit,
+    onOpenDialog: () -> Unit,
 ) {
-    // 导航栏液态玻璃调参卡：滑块实时生效（拖动即改 BottomTabs 效果参数），并持久化
-    // 拖动回调经 CompositionLocal 下发：内部的 GlassSlider → LiquidSlider 直接读取
-    CompositionLocalProvider(LocalSliderDraggingChanged provides onDraggingChanged) {
-        SettingsCard {
+    SettingsCard {
         CardTitleWithTip(
             title = "导航栏玻璃效果",
-            tipDescription = "底部玻璃栏和滑块的全部液态玻璃参数：边缘扭曲（带宽/强度）、背景模糊、玻璃底色、滑块磨砂、按住外移、边缘模糊、彩色色散，以及切换手感（粘滞/量化/震动）。\n\n所有滑块均实时生效并自动保存。",
+            tipDescription = "底部玻璃栏和滑块的全部液态玻璃参数：导航栏高度、边缘扭曲（带宽/强度）、背景模糊、玻璃底色、滑块磨砂、按住外移、边缘模糊、彩色色散，以及切换手感（粘滞/量化/震动）。\n\n所有滑块均实时生效并自动保存。",
         )
         Spacer(modifier = Modifier.height(12.dp))
-
-        // 彩色色散边开关
-        OptionBox {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("彩色色散边", fontSize = 15.sp)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    InfoTip(description = "滑块边缘的彩色色散（彩虹边），渐变更柔和的玻璃质感。", title = "彩色色散边")
-                }
-                LiquidToggle(
-                    selected = { tuning.chromaticAberration },
-                    onSelect = { onTuningChange(tuning.copy(chromaticAberration = it)) },
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 段落震动开关
-        OptionBox {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("段落震动反馈", fontSize = 15.sp)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    InfoTip(description = "拖动滑块跨越档位时轻震动一下，增强档位手感。", title = "段落震动反馈")
-                }
-                LiquidToggle(
-                    selected = { tuning.detentHaptics },
-                    onSelect = { onTuningChange(tuning.copy(detentHaptics = it)) },
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-
-        GlassSlider(
-            label = "边缘扭曲带宽",
-            hint = "滑块边缘玻璃的“厚度”",
-            value = tuning.refractionHeightDp,
-            valueRange = 0f..16f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(refractionHeightDp = it)) },
-        )
-        GlassSlider(
-            label = "边缘扭曲强度",
-            hint = "边缘内内容被弯曲的程度",
-            value = tuning.refractionAmountDp,
-            valueRange = 0f..24f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(refractionAmountDp = it)) },
-        )
-        GlassSlider(
-            label = "边缘模糊",
-            hint = "只雾化滑块边缘一圈（环宽=模糊值），中心不受影响",
-            value = tuning.edgeBlurDp,
-            valueRange = 0f..16f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(edgeBlurDp = it)) },
-        )
-        GlassSlider(
-            label = "背景模糊半径",
-            hint = "整条玻璃栏磨砂感",
-            value = tuning.blurDp,
-            valueRange = 0f..24f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(blurDp = it)) },
-        )
-        GlassSlider(
-            label = "玻璃底色浓度",
-            hint = "玻璃表面白色蒙层的浓淡",
-            value = tuning.containerAlpha,
-            valueRange = 0f..1f,
-            unit = "%",
-            onChange = { onTuningChange(tuning.copy(containerAlpha = it)) },
-        )
-        GlassSlider(
-            label = "滑块磨砂度",
-            hint = "雾化滑块内透出的内容，拉高可弱化“镜面”感",
-            value = tuning.capsuleBlurDp,
-            valueRange = 0f..16f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(capsuleBlurDp = it)) },
-        )
-        GlassSlider(
-            label = "按住时上下边框外移",
-            hint = "按住滑块时上下边框外移的幅度，负值=向内收缩",
-            value = tuning.pressStretchVDp,
-            valueRange = -24f..24f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(pressStretchVDp = it)) },
-        )
-        GlassSlider(
-            label = "按住时左右边框外移",
-            hint = "按住滑块时左右边框外移的幅度，负值=向内收缩",
-            value = tuning.pressStretchHDp,
-            valueRange = -24f..24f,
-            unit = "dp",
-            onChange = { onTuningChange(tuning.copy(pressStretchHDp = it)) },
-        )
-        GlassSlider(
-            label = "切换粘滞强度",
-            hint = "磁吸档位感：档位附近拖不动、越过中点弹过去",
-            value = tuning.detentStrength,
-            valueRange = 0f..0.9f,
-            unit = "%",
-            onChange = { onTuningChange(tuning.copy(detentStrength = it)) },
-        )
-        GlassSlider(
-            label = "段落量化",
-            hint = "拖动时按档位逐格跳变（0=连续跟手，1=纯档位）",
-            value = tuning.detentQuantize,
-            valueRange = 0f..1f,
-            unit = "%",
-            onChange = { onTuningChange(tuning.copy(detentQuantize = it)) },
-        )
-
+        // 点击弹窗调参：弹窗在 LazyColumn 之外渲染，且不遮底部导航栏，可实时查看效果
         LiquidButton(
-            onClick = { onTuningChange(NavGlassTuning()) },
+            onClick = onOpenDialog,
             modifier = Modifier.fillMaxWidth(),
+            tint = MaterialTheme.colorScheme.primary,
         ) {
-            Text("恢复默认", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            Text("调整玻璃效果", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         }
+    }
+}
+
+/**
+ * 导航栏玻璃效果调参弹窗（设置页内覆盖层，非系统 Dialog 窗口）：
+ * 居中悬浮小窗口，四边均不贴屏幕边（左右 20dp、上下留 14% 空隙）→
+ * 底部导航栏完整露出，拖动滑块实时看效果。
+ */
+@Composable
+private fun NavGlassDialog(
+    tuning: NavGlassTuning,
+    onTuningChange: (NavGlassTuning) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // 弹窗内拖动滑块时锁定面板自身滚动（局部状态，不影响设置页）
+    var dialogDragging by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize()) {
+        // 遮罩层：面板背后的兄弟节点。Compose 命中测试只取最上层兄弟——
+        // 面板内的任何手势（开关点击、滑块拖动，这些官方液态组件不消费指针事件）
+        // 都不会传到遮罩，调参时不再误关弹窗；只有点在面板之外才触发 onDismiss。
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        )
+        // 弹窗本体用液态玻璃配方（LiquidCard）：折射全局光斑背景 + 磨砂 + 边缘透镜，
+        // 叠一层半透明底色保文字可读；与设置页卡片同源，整屏玻璃观感统一。
+        // LiquidCard 内部是 Column，用 clip 限定内容不出圆角（内部 LazyColumn 会滚动）
+        LiquidCard(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 20.dp)
+                .fillMaxWidth()
+                .fillMaxHeight(0.72f)
+                .clip(RoundedCornerShape(28.dp)),
+            cornerRadius = 28f.dp,
+            surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.45f),
+        ) {
+            CompositionLocalProvider(LocalSliderDraggingChanged provides { dialogDragging = it }) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    userScrollEnabled = !dialogDragging,
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                ) {
+                    // 标题行 + 关闭
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "导航栏玻璃效果",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                InfoTip(
+                                    description = "所有滑块实时生效，弹窗不遮挡底部导航栏，可边调边看效果。",
+                                    title = "导航栏玻璃效果",
+                                )
+                            }
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "关闭",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // 彩色色散边开关
+                    item {
+                        OptionBox {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("彩色色散边", fontSize = 15.sp)
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    InfoTip(description = "滑块边缘的彩色色散（彩虹边），渐变更柔和的玻璃质感。", title = "彩色色散边")
+                                }
+                                LiquidToggle(
+                                    selected = { tuning.chromaticAberration },
+                                    onSelect = { onTuningChange(tuning.copy(chromaticAberration = it)) },
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // 段落震动开关
+                    item {
+                        OptionBox {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("段落震动反馈", fontSize = 15.sp)
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    InfoTip(description = "拖动滑块跨越档位时轻震动一下，增强档位手感。", title = "段落震动反馈")
+                                }
+                                LiquidToggle(
+                                    selected = { tuning.detentHaptics },
+                                    onSelect = { onTuningChange(tuning.copy(detentHaptics = it)) },
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // 10 个调参滑块
+                    item {
+                        GlassSlider(
+                            label = "导航栏高度",
+                            hint = "整条玻璃栏背景板的高度：胶囊、图标、手势层保持官方 56dp 不变，只升降背景玻璃板。默认 72dp",
+                            value = tuning.barHeightDp,
+                            valueRange = 60f..104f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(barHeightDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "边缘扭曲带宽",
+                            hint = "滑块边缘玻璃的“厚度”",
+                            value = tuning.refractionHeightDp,
+                            valueRange = 0f..16f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(refractionHeightDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "边缘扭曲强度",
+                            hint = "边缘内内容被弯曲的程度",
+                            value = tuning.refractionAmountDp,
+                            valueRange = 0f..24f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(refractionAmountDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "边缘模糊",
+                            hint = "只雾化滑块边缘一圈（环宽=模糊值），中心不受影响",
+                            value = tuning.edgeBlurDp,
+                            valueRange = 0f..16f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(edgeBlurDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "背景模糊半径",
+                            hint = "整条玻璃栏磨砂感",
+                            value = tuning.blurDp,
+                            valueRange = 0f..24f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(blurDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "玻璃底色浓度",
+                            hint = "玻璃表面白色蒙层的浓淡",
+                            value = tuning.containerAlpha,
+                            valueRange = 0f..1f,
+                            unit = "%",
+                            onChange = { onTuningChange(tuning.copy(containerAlpha = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "滑块磨砂度",
+                            hint = "雾化滑块内透出的内容，拉高可弱化“镜面”感",
+                            value = tuning.capsuleBlurDp,
+                            valueRange = 0f..16f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(capsuleBlurDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "按住时上下边框外移",
+                            hint = "按住滑块时上下边框外移的幅度，负值=向内收缩",
+                            value = tuning.pressStretchVDp,
+                            valueRange = -24f..24f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(pressStretchVDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "按住时左右边框外移",
+                            hint = "按住滑块时左右边框外移的幅度，负值=向内收缩",
+                            value = tuning.pressStretchHDp,
+                            valueRange = -24f..24f,
+                            unit = "dp",
+                            onChange = { onTuningChange(tuning.copy(pressStretchHDp = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "切换粘滞强度",
+                            hint = "磁吸档位感：档位附近拖不动、越过中点弹过去",
+                            value = tuning.detentStrength,
+                            valueRange = 0f..0.9f,
+                            unit = "%",
+                            onChange = { onTuningChange(tuning.copy(detentStrength = it)) },
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "段落量化",
+                            hint = "拖动时按档位逐格跳变（0=连续跟手，1=纯档位）",
+                            value = tuning.detentQuantize,
+                            valueRange = 0f..1f,
+                            unit = "%",
+                            onChange = { onTuningChange(tuning.copy(detentQuantize = it)) },
+                        )
+                    }
+
+                    // 恢复默认
+                    item {
+                        LiquidButton(
+                            onClick = { onTuningChange(NavGlassTuning()) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("恢复默认", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
         }
     }
 }
@@ -1089,7 +1229,7 @@ private fun AboutCard() {
                 tint = if (isUpdateFound) MaterialTheme.colorScheme.primary else Color.Unspecified,
                 surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.35f),
             ) {
-                // 文字严格居中，图标绝对定位在左侧（不参与居中）
+                // 文字居中显示，左右留出图标区域（避免长文本与左侧图标重叠）
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = when (val s = updateState) {
@@ -1101,7 +1241,10 @@ private fun AboutCard() {
                             UpdateState.Error -> "检查失败，点击重试"
                         },
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 40.dp, end = 16.dp),
                     )
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -1126,12 +1269,15 @@ private fun AboutCard() {
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                // 文字严格居中，图标绝对定位在左侧（不参与居中）
+                // 文字居中显示，左右留出图标区域
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "GitHub开源地址",
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 40.dp, end = 16.dp),
                     )
                     Icon(
                         imageVector = Icons.Default.Star,

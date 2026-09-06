@@ -13,7 +13,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 17
-        versionName = "1.4.4"
+        versionName = "1.4.5"
 
         // 网络安全：允许明文传输（仅用于 API 调用）
         vectorDrawables {

@@ -344,17 +344,18 @@ private fun BalanceAppContent(
     var navGlassTuning by remember {
         mutableStateOf(
             NavGlassTuning(
+                barHeightDp = prefs.getFloat("nav_glass_bar_height", 64f),
                 refractionHeightDp = prefs.getFloat("nav_glass_refraction_h", 0f),
                 refractionAmountDp = prefs.getFloat("nav_glass_refraction_a", 0f),
-                blurDp = prefs.getFloat("nav_glass_blur", 8f),
-                containerAlpha = prefs.getFloat("nav_glass_alpha", 0.4f),
+                blurDp = prefs.getFloat("nav_glass_blur", 12f),
+                containerAlpha = prefs.getFloat("nav_glass_alpha", 0f),
                 capsuleBlurDp = prefs.getFloat("nav_glass_capsule_blur", 0f),
-                pressStretchVDp = prefs.getFloat("nav_glass_press_stretch_v", 8f),
-                pressStretchHDp = prefs.getFloat("nav_glass_press_stretch_h", 0f),
+                pressStretchVDp = prefs.getFloat("nav_glass_press_stretch_v", 12f),
+                pressStretchHDp = prefs.getFloat("nav_glass_press_stretch_h", 6f),
                 edgeBlurDp = prefs.getFloat("nav_glass_edge_blur", 0f),
-                chromaticAberration = prefs.getBoolean("nav_glass_chroma", false),
-                detentStrength = prefs.getFloat("nav_glass_detent", 0.45f),
-                detentQuantize = prefs.getFloat("nav_glass_detent_quant", 0f),
+                chromaticAberration = prefs.getBoolean("nav_glass_chroma", true),
+                detentStrength = prefs.getFloat("nav_glass_detent", 0f),
+                detentQuantize = prefs.getFloat("nav_glass_detent_quant", 1f),
                 detentHaptics = prefs.getBoolean("nav_glass_detent_haptic", true),
             )
         )
@@ -660,6 +661,7 @@ private fun BalanceAppContent(
                     onNavGlassTuningChange = { tuning ->
                         navGlassTuning = tuning
                         prefs.edit()
+                            .putFloat("nav_glass_bar_height", tuning.barHeightDp)
                             .putFloat("nav_glass_refraction_h", tuning.refractionHeightDp)
                             .putFloat("nav_glass_refraction_a", tuning.refractionAmountDp)
                             .putFloat("nav_glass_blur", tuning.blurDp)

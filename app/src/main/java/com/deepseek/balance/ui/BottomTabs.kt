@@ -110,31 +110,33 @@ internal val LocalLiquidBottomTabScale =
  * 导航栏液态玻璃可调参数：由设置页「导航栏玻璃效果」卡的滑块实时调节，SharedPreferences 持久化。
  */
 data class NavGlassTuning(
+    /** 导航栏背景板（整条玻璃材质层）高度（dp）：胶囊/图标/手势层保持官方 56dp 不变，背景板独立升降。默认 64 */
+    val barHeightDp: Float = 64f,
     /** 胶囊边缘扭曲带宽（静止基值，dp）。按压时叠加官方增量 +10dp */
     val refractionHeightDp: Float = 0f,
     /** 胶囊边缘扭曲强度（静止基值，dp）。按压时叠加官方增量 +14dp */
     val refractionAmountDp: Float = 0f,
-    /** 整条玻璃栏的背景模糊半径（dp），官方默认 8 */
-    val blurDp: Float = 8f,
-    /** 玻璃底色不透明度（0=全透，1=不透明），官方默认 0.4 */
-    val containerAlpha: Float = 0.4f,
-    /** 胶囊磨砂度（dp）：雾化胶囊内透出的内容，拉高可消除"镜面"感（官方默认 0=清晰） */
+    /** 整条玻璃栏的背景模糊半径（dp），默认 12 */
+    val blurDp: Float = 12f,
+    /** 玻璃底色不透明度（0=全透，1=不透明），默认 0 */
+    val containerAlpha: Float = 0f,
+    /** 胶囊磨砂度（dp）：雾化胶囊内透出的内容，拉高可消除"镜面"感 */
     val capsuleBlurDp: Float = 0f,
-    /** 按住时胶囊上下边框外移量（dp）：在官方果冻按压缩放之上额外纵向拉伸，负值=向内收缩，0=关闭 */
-    val pressStretchVDp: Float = 8f,
-    /** 按住时胶囊左右边框外移量（dp）：在官方果冻按压缩放之上额外横向拉伸，负值=向内收缩，0=官方原版 */
-    val pressStretchHDp: Float = 0f,
+    /** 按住时胶囊上下边框外移量（dp）：在官方果冻按压缩放之上额外纵向拉伸，负值=向内收缩，0=关闭。默认 12 */
+    val pressStretchVDp: Float = 12f,
+    /** 按住时胶囊左右边框外移量（dp）：在官方果冻按压缩放之上额外横向拉伸，负值=向内收缩，0=官方原版。默认 6 */
+    val pressStretchHDp: Float = 6f,
     /** 边缘模糊（dp）：只把胶囊边缘一圈磨砂（环宽=模糊半径），0=关闭；中心折射不受影响 */
     val edgeBlurDp: Float = 0f,
-    /** 胶囊边缘彩色色散（彩虹边），默认关闭 */
-    val chromaticAberration: Boolean = false,
+    /** 胶囊边缘彩色色散（彩虹边），默认开启 */
+    val chromaticAberration: Boolean = true,
     /**
      * 切换粘滞强度（0=完全跟手，0.9=强磁吸）：拖动时靠近 tab 位置移动变慢（像被吸住），
-     * 越过中点后加速"弹"过去 → 物理档位感。上限 0.9（=1 时档位处导数为 0，会彻底拖不动）
+     * 越过中点后加速"弹"过去 → 物理档位感。上限 0.9（=1 时档位处导数为 0，会彻底拖不动）。默认 0
      */
-    val detentStrength: Float = 0.45f,
-    /** 段落量化（0=连续跟手，1=纯档位跳变）：拖动时按 tab 位置逐格跳动 */
-    val detentQuantize: Float = 0f,
+    val detentStrength: Float = 0f,
+    /** 段落量化（0=连续跟手，1=纯档位跳变）：拖动时按 tab 位置逐格跳动。默认 1 */
+    val detentQuantize: Float = 1f,
     /** 段落震动：拖动跨越档位的瞬间来一记轻震动 */
     val detentHaptics: Boolean = true,
 )
@@ -253,19 +255,12 @@ internal fun BottomTabs(
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
                 pressedScale = 1.2f,
-                // 按住栏上任意位置（手势层覆盖整条栏）：滑块立刻弹簧快滑到手指位置（Q 弹抓取）。
-                // 参数 down 即手指按下位置（Offset，手势层全栏宽坐标系）。
-                // 减 0.5 让胶囊【中心】对准手指：胶囊渲染左缘 = 4dp + value×tabWidth，
-                // 中心 = 左缘 + tabWidth/2 —— 不减会把左缘贴到手指上，视觉上"没滑到位"
-                onDragStarted = { down ->
-                    with(density) {
-                        val v = ((down.x - 4f.dp.toPx()) / tabWidth - 0.5f)
-                            .fastCoerceIn(0f, (tabsCount - 1).toFloat())
-                        // 按下时【不加粘滞】：滑块精确落到手指正下方（用户明确要求的行为）
-                        rawDrag[0] = v
-                        lastDetentIndex[0] = v.fastRoundToInt()
-                        updateValue(v)
-                    }
+                onDragStarted = { _ ->
+                    // 手势挂在胶囊自身（官方架构）：按下时胶囊已经在该 tab 位置上，
+                    // **没有落位动作**（官方 demo 同款空实现）。
+                    // 不可用 down 坐标换算 v —— down 是胶囊 Box 的【局部】坐标，旧公式按
+                    // 全栏坐标设计，胶囊在最右档（设置）时会把 v 算成 0 → 一按就滑回首页。
+                    // 拖动基准 rawDrag 已由 onDragStopped / LaunchedEffect 同步为当前档位。
                 },
                 onDragStopped = {
                     val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
@@ -355,7 +350,7 @@ internal fun BottomTabs(
                     // 官方滑动偏移 + 中心生长补偿：layerBlock 缩放基准钉左上角（与库逆变换
                     // 基准一致 → 折射内容零错位、无重影），增长量全推向右下；
                     // 此处按同一缩放值反向平移半个增量 → 视觉等效从中心放大（官方原版观感）
-                    val progress = dampedDragAnimation.pressProgress
+                    val progress = safeProgress(dampedDragAnimation.pressProgress)
                     val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
                     translationX = panelOffset - (scale - 1f) * size.width / 2f
                     translationY = -(scale - 1f) * size.height / 2f
@@ -373,7 +368,7 @@ internal fun BottomTabs(
                         // （库逆变换 inverseTransformAtTopLeft 只认 Offset.Zero），中心放大的
                         // 观感由上方外层 graphicsLayer 的平移补偿实现
                         transformOrigin = TransformOrigin(0f, 0f)
-                        val progress = dampedDragAnimation.pressProgress
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
                         val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
                         scaleX = scale
                         scaleY = scale
@@ -381,7 +376,7 @@ internal fun BottomTabs(
                     onDrawSurface = { drawRect(containerColor) }
                 )
                 .then(interactiveHighlight.modifier)
-                .height(72f.dp)
+                .height(tuning.barHeightDp.dp)
                 .fillMaxWidth()
                 .padding(vertical = 8f.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -464,26 +459,31 @@ internal fun BottomTabs(
                     // 反向平移半个增量 → 视觉等效从中心放大/挤压。
                     // 最终缩放 = 按压弹簧缩放 ∘ 速度形变，须与下方 layerBlock 内的数学逐字一致，
                     // 否则正逆变换抵消不干净又会出现内容错位。
-                    val sx = dampedDragAnimation.scaleX
-                    val sy = dampedDragAnimation.scaleY
-                    // 官方原版速度项带符号（右滑拉伸/左滑收缩，本身不对称）；取绝对值让
-                    // 左右快速滑动的果冻响应镜像对称（幅度与官方右滑响应一致）
-                    val v = abs(dampedDragAnimation.velocity) / 10f
-                    val progress = dampedDragAnimation.pressProgress
+                    val sx = safeScale(dampedDragAnimation.scaleX)
+                    val sy = safeScale(dampedDragAnimation.scaleY)
+                    // 速度形变项：取绝对值（左右果冻镜像对称）并夹在 ±0.2；
+                    // 非有限值（NaN/Infinity）视为 0，避免把缩放算成 NaN 导致胶囊被压扁/拉伸且不恢复
+                    val v = safeVelocity(dampedDragAnimation.velocity)
+                    val progress = safeProgress(dampedDragAnimation.pressProgress)
                     // 最终缩放 = 按压弹簧缩放 ∘ 速度形变 ∘ 按压边框外移（上下/左右，滑块可调），
                     // 各项均须与下方 layerBlock 内的数学逐字一致，否则正逆变换抵消不干净会重现重影
-                    val totalSx = sx / (1f - (v * 0.75f).fastCoerceIn(-0.2f, 0.2f)) *
+                    val totalSx = sx / (1f - v * 0.75f) *
                         lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
-                    val totalSy = sy * (1f - (v * 0.25f).fastCoerceIn(-0.2f, 0.2f)) *
+                    val totalSy = sy * (1f - v * 0.25f) *
                         lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
                     translationX = baseX - (totalSx - 1f) * size.width / 2f
                     translationY = -(totalSy - 1f) * size.height / 2f
                 }
+                // 官方架构：手势（高亮光斑 + 拖动）挂在胶囊自身，不覆盖整条栏 ——
+                // 点 tab（胶囊外）只走 clickable → 单一动画路径（LaunchedEffect → animateToValue），
+                // 不会像全宽手势层那样与点击切换抢 press/value 动画，杜绝「静止变扁/拉长不恢复」竞态
+                .then(interactiveHighlight.gestureModifier)
+                .then(dampedDragAnimation.modifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = { Capsule() },
                     effects = {
-                        val progress = dampedDragAnimation.pressProgress
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
                         // 磨砂度 > 0 时雾化胶囊内透出的内容（消除"镜面反射"感），
                         // 边缘扭曲照常作用于雾化后的内容
                         if (tuning.capsuleBlurDp > 0f) blur(tuning.capsuleBlurDp.dp.toPx())
@@ -495,15 +495,15 @@ internal fun BottomTabs(
                         )
                     },
                     highlight = {
-                        val progress = dampedDragAnimation.pressProgress
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
                         Highlight.Default.copy(alpha = progress)
                     },
                     shadow = {
-                        val progress = dampedDragAnimation.pressProgress
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
                         Shadow(alpha = progress)
                     },
                     innerShadow = {
-                        val progress = dampedDragAnimation.pressProgress
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
                         InnerShadow(
                             radius = 8f.dp * progress,
                             alpha = progress
@@ -516,21 +516,21 @@ internal fun BottomTabs(
                     // 在此把缩放基准显式钉到左上角：正/逆变换精确抵消，胶囊弹跳与内容对齐兼得。
                     layerBlock = {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        scaleX = dampedDragAnimation.scaleX
-                        scaleY = dampedDragAnimation.scaleY
-                        // 与外层补偿一致：速度取绝对值（官方带符号版本左右不对称，见上方注释）
-                        val velocity = abs(dampedDragAnimation.velocity) / 10f
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                        // 与外层 graphicsLayer 同源的安全化值，数学逐字一致（详见上方注释）
+                        val sx = safeScale(dampedDragAnimation.scaleX)
+                        val sy = safeScale(dampedDragAnimation.scaleY)
+                        val velocity = safeVelocity(dampedDragAnimation.velocity)
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
+                        scaleX = sx / (1f - velocity * 0.75f)
+                        scaleY = sy * (1f - velocity * 0.25f)
                         // 用户要求可调：按住时胶囊边框外移——上下/左右各自在官方果冻按压
                         // 之上额外拉伸（设置页「按住时上下/左右边框外移」滑块，0=关闭）。
                         // 外层 graphicsLayer 的 totalSx/totalSy 已按同式补偿，正逆变换精确抵消
-                        val progress = dampedDragAnimation.pressProgress
                         scaleX *= lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
                         scaleY *= lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
                     },
                     onDrawSurface = {
-                        val progress = dampedDragAnimation.pressProgress
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
                         drawRect(
                             if (isLightTheme) Color.Black.copy(0.1f)
                             else Color.White.copy(0.1f),
@@ -559,13 +559,13 @@ internal fun BottomTabs(
                     .graphicsLayer {
                         val baseX = if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
                             else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
-                        val sx = dampedDragAnimation.scaleX
-                        val sy = dampedDragAnimation.scaleY
-                        val v = abs(dampedDragAnimation.velocity) / 10f
-                        val progress = dampedDragAnimation.pressProgress
-                        val totalSx = sx / (1f - (v * 0.75f).fastCoerceIn(-0.2f, 0.2f)) *
+                        val sx = safeScale(dampedDragAnimation.scaleX)
+                        val sy = safeScale(dampedDragAnimation.scaleY)
+                        val v = safeVelocity(dampedDragAnimation.velocity)
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
+                        val totalSx = sx / (1f - v * 0.75f) *
                             lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
-                        val totalSy = sy * (1f - (v * 0.25f).fastCoerceIn(-0.2f, 0.2f)) *
+                        val totalSy = sy * (1f - v * 0.25f) *
                             lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
                         translationX = baseX - (totalSx - 1f) * size.width / 2f
                         translationY = -(totalSy - 1f) * size.height / 2f
@@ -576,12 +576,12 @@ internal fun BottomTabs(
                         effects = { blur(tuning.edgeBlurDp.dp.toPx()) },
                         layerBlock = {
                             transformOrigin = TransformOrigin(0f, 0f)
-                            scaleX = dampedDragAnimation.scaleX
-                            scaleY = dampedDragAnimation.scaleY
-                            val velocity = abs(dampedDragAnimation.velocity) / 10f
-                            scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                            scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                            val progress = dampedDragAnimation.pressProgress
+                            val sx = safeScale(dampedDragAnimation.scaleX)
+                            val sy = safeScale(dampedDragAnimation.scaleY)
+                            val velocity = safeVelocity(dampedDragAnimation.velocity)
+                            val progress = safeProgress(dampedDragAnimation.pressProgress)
+                            scaleX = sx / (1f - velocity * 0.75f)
+                            scaleY = sy * (1f - velocity * 0.25f)
                             scaleX *= lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
                             scaleY *= lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
                         },
@@ -610,20 +610,17 @@ internal fun BottomTabs(
                     .fillMaxWidth(1f / tabsCount)
             )
         }
-
-        // 手势层：覆盖整条栏的【唯一】手势源——按住任意位置 → onDragStarted 里滑块立刻
-        // 弹簧滑到手指处并进入按压态；拖动跟手；松手吸附最近 tab（onDragStopped 既有逻辑）。
-        // 胶囊本体已摘掉手势：几何重叠的兄弟节点若都挂 handler，事件共享派发会叠乘两倍速。
-        // inspectDragGestures 不消费事件 → 底下 tab 的 clickable 照常收到轻点切换页面。
-        Box(
-            Modifier
-                .height(56f.dp)
-                .fillMaxWidth()
-                .then(interactiveHighlight.gestureModifier)
-                .then(dampedDragAnimation.modifier)
-        )
     }
 }
+
+/** 动画值安全化：Animatable 偶发 NaN/Infinity（速度估算极端时序、动画互斥打断）会把
+ *  缩放/进度算成 NaN → 胶囊被渲染成扁平/拉伸且不恢复。统一回退到常态值再参与计算。 */
+private fun safeScale(v: Float) = if (v.isFinite()) v.coerceIn(0.5f, 2f) else 1f
+
+private fun safeProgress(v: Float) = if (v.isFinite()) v.coerceIn(0f, 1f) else 0f
+
+/** 速度形变项：取绝对值（左右果冻镜像对称）并夹在 ±0.2，非有限值视为 0 */
+private fun safeVelocity(v: Float) = if (v.isFinite()) (abs(v) / 10f).fastCoerceIn(-0.2f, 0.2f) else 0f
 
 /**
  * 档位粘滞曲线：把手指的线性行程映射为"有档位感"的位置。

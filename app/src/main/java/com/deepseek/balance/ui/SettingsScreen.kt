@@ -65,6 +65,25 @@ import kotlin.math.roundToInt
 // 拖动调参滑块时通知外层锁定页面滚动，避免跟随手指上下滑
 val LocalSliderDraggingChanged = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 
+/**
+ * 记住回调的最新值、返回身份【稳定】的包装器（Float 版）：
+ * 拖动一个滑块时 NavGlassDialog 会整体重组，item 里若直接传 `{ onTuningChange(tuning.copy(...)) }`
+ * 这种每帧新建的 lambda，其余 9 个静止滑块会因参数不相等而无法跳过重组，
+ * 每帧重复重建各自的 drawBackdrop(RenderEffect) —— 调参掉帧的主因。
+ * 稳定外壳保证非拖动项参数全等 → Compose 直接跳过其重组。
+ */
+@Composable
+private fun rememberStableFloatCallback(callback: (Float) -> Unit): (Float) -> Unit {
+    val current by rememberUpdatedState(callback)
+    return remember { { v: Float -> current(v) } }
+}
+
+@Composable
+private fun rememberStableBoolCallback(callback: (Boolean) -> Unit): (Boolean) -> Unit {
+    val current by rememberUpdatedState(callback)
+    return remember { { v: Boolean -> current(v) } }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -115,6 +134,9 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+        // 整页玻璃板（1 层）：为设置页提供玻璃折射底，卡片/顶栏透出它 ——
+        // 取代"每张卡各自 backdrop 层"，滚动时 RenderThread 只重建这一层（120Hz 关键）
+        GlassPage(Modifier.fillMaxSize())
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 96.dp),
@@ -729,6 +751,29 @@ private fun NavGlassDialog(
     // 弹窗内拖动滑块时锁定面板自身滚动（局部状态，不影响设置页）
     var dialogDragging by remember { mutableStateOf(false) }
 
+    // 拖动调参降级（120Hz 目标）：拖动时标记 interactiveDegrade=true → 底栏跳过 blur 和
+    // 边缘模糊环（RenderEffect 最贵的两项），松手时提交精确值并恢复完整效果。
+    // 这样效果参数每帧都能跟手更新（120Hz 预览），不再是限频后的 ~60Hz。
+    val throttledChange: (NavGlassTuning) -> Unit = { newTuning ->
+        onTuningChange(newTuning.copy(interactiveDegrade = dialogDragging))
+    }
+
+    // 稳定回调：拖动任一滑块导致整体重组时，非拖动项参数身份不变 → 跳过重组，
+    // 避免 10 个静止滑块每帧重建各自的 drawBackdrop（调参掉帧的另一主因）
+    val cChroma = rememberStableBoolCallback { throttledChange(tuning.copy(chromaticAberration = it)) }
+    val cHaptics = rememberStableBoolCallback { throttledChange(tuning.copy(detentHaptics = it)) }
+    val cHeight = rememberStableFloatCallback { throttledChange(tuning.copy(barHeightDp = it)) }
+    val cRefrH = rememberStableFloatCallback { throttledChange(tuning.copy(refractionHeightDp = it)) }
+    val cRefrA = rememberStableFloatCallback { throttledChange(tuning.copy(refractionAmountDp = it)) }
+    val cEdgeBlur = rememberStableFloatCallback { throttledChange(tuning.copy(edgeBlurDp = it)) }
+    val cBlur = rememberStableFloatCallback { throttledChange(tuning.copy(blurDp = it)) }
+    val cAlpha = rememberStableFloatCallback { throttledChange(tuning.copy(containerAlpha = it)) }
+    val cCapsuleBlur = rememberStableFloatCallback { throttledChange(tuning.copy(capsuleBlurDp = it)) }
+    val cStretchV = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchVDp = it)) }
+    val cStretchH = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchHDp = it)) }
+    val cDetent = rememberStableFloatCallback { throttledChange(tuning.copy(detentStrength = it)) }
+    val cQuant = rememberStableFloatCallback { throttledChange(tuning.copy(detentQuantize = it)) }
+
     Box(Modifier.fillMaxSize()) {
         // 遮罩层：面板背后的兄弟节点。Compose 命中测试只取最上层兄弟——
         // 面板内的任何手势（开关点击、滑块拖动，这些官方液态组件不消费指针事件）
@@ -743,19 +788,24 @@ private fun NavGlassDialog(
                     onClick = onDismiss,
                 ),
         )
-        // 弹窗本体用液态玻璃配方（LiquidCard）：折射全局光斑背景 + 磨砂 + 边缘透镜，
-        // 叠一层半透明底色保文字可读；与设置页卡片同源，整屏玻璃观感统一。
-        // LiquidCard 内部是 Column，用 clip 限定内容不出圆角（内部 LazyColumn 会滚动）
-        LiquidCard(
+        // 弹窗本体：整块 GlassPage 玻璃板（1 个静态层，参数不变 → 拖动滑块时不会重建）
+        // + 内容在其上，再叠半透明蒙层保文字可读；clip 限定圆角（内部 LazyColumn 会滚动）
+        Box(
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
                 .fillMaxHeight(0.72f)
                 .clip(RoundedCornerShape(28.dp)),
-            cornerRadius = 28f.dp,
-            surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.45f),
         ) {
+            GlassPage(Modifier.fillMaxSize())
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.45f),
+                    ),
+            )
             CompositionLocalProvider(LocalSliderDraggingChanged provides { dialogDragging = it }) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -811,7 +861,7 @@ private fun NavGlassDialog(
                                 }
                                 LiquidToggle(
                                     selected = { tuning.chromaticAberration },
-                                    onSelect = { onTuningChange(tuning.copy(chromaticAberration = it)) },
+                                    onSelect = cChroma,
                                 )
                             }
                         }
@@ -836,7 +886,7 @@ private fun NavGlassDialog(
                                 }
                                 LiquidToggle(
                                     selected = { tuning.detentHaptics },
-                                    onSelect = { onTuningChange(tuning.copy(detentHaptics = it)) },
+                                    onSelect = cHaptics,
                                 )
                             }
                         }
@@ -851,7 +901,7 @@ private fun NavGlassDialog(
                             value = tuning.barHeightDp,
                             valueRange = 60f..104f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(barHeightDp = it)) },
+                            onChange = cHeight,
                         )
                     }
                     item {
@@ -861,7 +911,7 @@ private fun NavGlassDialog(
                             value = tuning.refractionHeightDp,
                             valueRange = 0f..16f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(refractionHeightDp = it)) },
+                            onChange = cRefrH,
                         )
                     }
                     item {
@@ -871,7 +921,7 @@ private fun NavGlassDialog(
                             value = tuning.refractionAmountDp,
                             valueRange = 0f..24f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(refractionAmountDp = it)) },
+                            onChange = cRefrA,
                         )
                     }
                     item {
@@ -881,7 +931,7 @@ private fun NavGlassDialog(
                             value = tuning.edgeBlurDp,
                             valueRange = 0f..16f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(edgeBlurDp = it)) },
+                            onChange = cEdgeBlur,
                         )
                     }
                     item {
@@ -891,7 +941,7 @@ private fun NavGlassDialog(
                             value = tuning.blurDp,
                             valueRange = 0f..24f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(blurDp = it)) },
+                            onChange = cBlur,
                         )
                     }
                     item {
@@ -901,7 +951,7 @@ private fun NavGlassDialog(
                             value = tuning.containerAlpha,
                             valueRange = 0f..1f,
                             unit = "%",
-                            onChange = { onTuningChange(tuning.copy(containerAlpha = it)) },
+                            onChange = cAlpha,
                         )
                     }
                     item {
@@ -911,7 +961,7 @@ private fun NavGlassDialog(
                             value = tuning.capsuleBlurDp,
                             valueRange = 0f..16f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(capsuleBlurDp = it)) },
+                            onChange = cCapsuleBlur,
                         )
                     }
                     item {
@@ -921,7 +971,7 @@ private fun NavGlassDialog(
                             value = tuning.pressStretchVDp,
                             valueRange = -24f..24f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(pressStretchVDp = it)) },
+                            onChange = cStretchV,
                         )
                     }
                     item {
@@ -931,7 +981,7 @@ private fun NavGlassDialog(
                             value = tuning.pressStretchHDp,
                             valueRange = -24f..24f,
                             unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(pressStretchHDp = it)) },
+                            onChange = cStretchH,
                         )
                     }
                     item {
@@ -941,7 +991,7 @@ private fun NavGlassDialog(
                             value = tuning.detentStrength,
                             valueRange = 0f..0.9f,
                             unit = "%",
-                            onChange = { onTuningChange(tuning.copy(detentStrength = it)) },
+                            onChange = cDetent,
                         )
                     }
                     item {
@@ -951,7 +1001,7 @@ private fun NavGlassDialog(
                             value = tuning.detentQuantize,
                             valueRange = 0f..1f,
                             unit = "%",
-                            onChange = { onTuningChange(tuning.copy(detentQuantize = it)) },
+                            onChange = cQuant,
                         )
                     }
 
@@ -964,12 +1014,12 @@ private fun NavGlassDialog(
                             Text("恢复默认", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-            }
-        }
-    }
-}
+                        } // 恢复默认 item
+                    } // LazyColumn
+                } // CompositionLocalProvider
+            } // 弹窗面板 Box
+        } // 遮罩 Box
+    } // NavGlassDialog
 
 @Composable
 private fun GlassSlider(

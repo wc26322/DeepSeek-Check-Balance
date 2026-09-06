@@ -139,6 +139,9 @@ data class NavGlassTuning(
     val detentQuantize: Float = 1f,
     /** 段落震动：拖动跨越档位的瞬间来一记轻震动 */
     val detentHaptics: Boolean = true,
+    /** 拖动调参降级（不持久化）：设置弹窗拖滑块时为 true，跳过底栏 blur 和边缘模糊环，
+     *  松手后恢复 —— blur/edgeBlur 是 RenderEffect 里最贵的，砍掉才能上 120 帧 */
+    val interactiveDegrade: Boolean = false,
 )
 
 @Composable
@@ -360,7 +363,7 @@ internal fun BottomTabs(
                     shape = { Capsule() },
                     effects = {
                         vibrancy()
-                        blur(tuning.blurDp.dp.toPx())
+                        if (!tuning.interactiveDegrade) blur(tuning.blurDp.dp.toPx())
                         lens(24f.dp.toPx(), 24f.dp.toPx())
                     },
                     layerBlock = {
@@ -414,7 +417,7 @@ internal fun BottomTabs(
                         effects = {
                             val progress = dampedDragAnimation.pressProgress
                             vibrancy()
-                            blur(tuning.blurDp.dp.toPx())
+                            if (!tuning.interactiveDegrade) blur(tuning.blurDp.dp.toPx())
                             lens(
                                 24f.dp.toPx() * progress,
                                 24f.dp.toPx() * progress
@@ -552,7 +555,8 @@ internal fun BottomTabs(
         // （Blur.kt）此时【不会】设置出血边距 padding，故层尺寸 = 节点尺寸、画布无平移，
         // onDrawBackdrop 的坐标原点即节点左上角、size 即节点实际尺寸（此前误减 2×pad 导致
         // 外轮廓收缩、磨砂环整体向左上偏移且右下缺边，已修正）。
-        if (tuning.edgeBlurDp > 0f) {
+        // 拖动调参降级：跳过 blur 的渲染，降 RenderEffect 负载（松手自动恢复）
+        if (tuning.edgeBlurDp > 0f && !tuning.interactiveDegrade) {
             Box(
                 Modifier
                     .padding(horizontal = 4f.dp)

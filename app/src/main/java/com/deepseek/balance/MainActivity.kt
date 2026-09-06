@@ -360,6 +360,8 @@ private fun BalanceAppContent(
             )
         )
     }
+    // 调参持久化节流：拖动滑块每帧回调，磁盘写入最多每 500ms 一次（内存预览不受影响）
+    var lastNavGlassPersist by remember { mutableLongStateOf(0L) }
 
     // 数据
     var isLoading by remember { mutableStateOf(false) }
@@ -659,22 +661,16 @@ private fun BalanceAppContent(
                     },
                     navGlassTuning = navGlassTuning,
                     onNavGlassTuningChange = { tuning ->
+                        // 内存立即更新（实时预览）；磁盘写入节流——拖动滑块每帧都在回调，
+                        // 每帧 apply() 会产生大量异步 IO 排队，是调参掉帧的次要来源。
+                        // 拖动结束后 500ms 内的改动会随最后一次节流写入落盘，最多丢半秒调整值
                         navGlassTuning = tuning
-                        prefs.edit()
-                            .putFloat("nav_glass_bar_height", tuning.barHeightDp)
-                            .putFloat("nav_glass_refraction_h", tuning.refractionHeightDp)
-                            .putFloat("nav_glass_refraction_a", tuning.refractionAmountDp)
-                            .putFloat("nav_glass_blur", tuning.blurDp)
-                            .putFloat("nav_glass_alpha", tuning.containerAlpha)
-                            .putFloat("nav_glass_capsule_blur", tuning.capsuleBlurDp)
-                            .putFloat("nav_glass_press_stretch_v", tuning.pressStretchVDp)
-                            .putFloat("nav_glass_press_stretch_h", tuning.pressStretchHDp)
-                            .putFloat("nav_glass_edge_blur", tuning.edgeBlurDp)
-                            .putBoolean("nav_glass_chroma", tuning.chromaticAberration)
-                            .putFloat("nav_glass_detent", tuning.detentStrength)
-                            .putFloat("nav_glass_detent_quant", tuning.detentQuantize)
-                            .putBoolean("nav_glass_detent_haptic", tuning.detentHaptics)
-                            .apply()
+                        val now = System.currentTimeMillis()
+                        // 持久化时剔除 interactiveDegrade（拖动降级是临时标记，不应写盘）
+                        if (now - lastNavGlassPersist >= 500 && !tuning.interactiveDegrade) {
+                            lastNavGlassPersist = now
+                            persistNavGlassTuning(prefs, tuning)
+                        }
                     },
                 )
             }
@@ -740,6 +736,30 @@ private fun placeholderUsage(): UsageData {
             ),
         ),
     )
+}
+
+/** 将导航栏玻璃调参持久化到 SharedPreferences（拖动时按 500ms 节流调用） */
+private fun persistNavGlassTuning(
+    prefs: android.content.SharedPreferences,
+    tuning: NavGlassTuning,
+) {
+    // interactiveDegrade 是拖动期临时降级标记，不持久化（调用方已过滤，双重保险）
+    val tuning = tuning.copy(interactiveDegrade = false)
+    prefs.edit()
+        .putFloat("nav_glass_bar_height", tuning.barHeightDp)
+        .putFloat("nav_glass_refraction_h", tuning.refractionHeightDp)
+        .putFloat("nav_glass_refraction_a", tuning.refractionAmountDp)
+        .putFloat("nav_glass_blur", tuning.blurDp)
+        .putFloat("nav_glass_alpha", tuning.containerAlpha)
+        .putFloat("nav_glass_capsule_blur", tuning.capsuleBlurDp)
+        .putFloat("nav_glass_press_stretch_v", tuning.pressStretchVDp)
+        .putFloat("nav_glass_press_stretch_h", tuning.pressStretchHDp)
+        .putFloat("nav_glass_edge_blur", tuning.edgeBlurDp)
+        .putBoolean("nav_glass_chroma", tuning.chromaticAberration)
+        .putFloat("nav_glass_detent", tuning.detentStrength)
+        .putFloat("nav_glass_detent_quant", tuning.detentQuantize)
+        .putBoolean("nav_glass_detent_haptic", tuning.detentHaptics)
+        .apply()
 }
 
 /** 保存数据到 Widget 共享存储 */

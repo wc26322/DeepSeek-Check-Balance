@@ -3,6 +3,7 @@ package com.deepseek.balance.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,20 +33,24 @@ internal fun BalanceCard(
     val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
     val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
 
-    // 玻璃底 + 品牌渐变蒙层：容器为官方玻璃卡（LiquidCard），
-    // 品牌渐变作为半透明蒙层经官方 onDrawSurface 扩展点画在玻璃表面——
-    // alpha 再降一档（0.78/0.84），让光斑折射能透出来，否则渐变盖死玻璃感
+    // 不透明品牌渐变实心卡（关掉液态玻璃：不透整页玻璃板，彻底不透明，保证文字可读）
     val primary = MaterialTheme.colorScheme.primary
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(
-            primary.copy(alpha = 0.78f),
-            primary.copy(red = (primary.red * 0.82f).coerceIn(0f, 1f), green = (primary.green * 0.82f).coerceIn(0f, 1f), blue = (primary.blue * 0.82f).coerceIn(0f, 1f), alpha = 0.84f),
+            primary,
+            primary.copy(
+                red = (primary.red * 0.82f).coerceIn(0f, 1f),
+                green = (primary.green * 0.82f).coerceIn(0f, 1f),
+                blue = (primary.blue * 0.82f).coerceIn(0f, 1f),
+            ),
         ),
     )
 
-    LiquidCard(
-        modifier = Modifier.fillMaxWidth(),
-        surfaceOverlay = { drawRect(brush = gradientBrush) },
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(32.dp))
+            .background(gradientBrush),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
                 Row(

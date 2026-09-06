@@ -121,6 +121,9 @@ fun MainScreen(
         val backdrop = rememberLayerBackdrop()
 
         Box(modifier = Modifier.fillMaxSize()) {
+        // 整页玻璃板（1 层）：为主屏提供玻璃折射底（取代各卡片独立 backdrop 层），
+        // 滚动时 RenderThread 只重建这一层，120Hz 滚动才撑得住
+        GlassPage(Modifier.fillMaxSize())
         // 禁用系统 overscroll：顶部下拉由 PullToRefreshBox 独占（无回弹）；下拉刷新手势与系统回弹在系统层面冲突，故整体关闭
         CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
         PullToRefreshBox(

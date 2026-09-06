@@ -79,6 +79,7 @@ class BalanceWidgetProvider : AppWidgetProvider() {
                 // 动画帧：只改文本，复用之前设置过的 PendingIntent
                 val ids = resolveIds(context, appWidgetManager)
                 val views = RemoteViews(context.packageName, R.layout.widget_balance)
+                applyGlassTextColors(context, views)
                 views.setTextViewText(R.id.widget_balance, "${prefs.getString(KEY_SYMBOL, "¥")}${frame.balance}")
                 views.setTextViewText(R.id.widget_total_tokens, frame.totalTokens)
                 views.setTextViewText(R.id.widget_today_tokens, frame.todayTokens)
@@ -96,6 +97,23 @@ class BalanceWidgetProvider : AppWidgetProvider() {
                 ComponentName(context, BalanceWidgetProvider::class.java),
             )
 
+        /**
+         * 液态玻璃小组件：背景 drawable 会自动按系统深/浅色切换（drawable-night），
+         * 这里同步适配文字颜色——深色玻璃上改用亮色，保证可读（浅色玻璃用布局默认深字）。
+         */
+        private fun applyGlassTextColors(context: Context, views: RemoteViews) {
+            val nightMode = context.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            if (nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES) return
+            views.setTextColor(R.id.widget_balance, 0xFFF5F7FA.toInt())
+            views.setTextColor(R.id.widget_total_tokens, 0xFF5CC8F6.toInt())
+            views.setTextColor(R.id.widget_today_tokens, 0xFF55E08C.toInt())
+            views.setTextColor(R.id.widget_update_time, 0xFF94A3B8.toInt())
+            views.setTextColor(R.id.widget_label_balance, 0xFF94A3B8.toInt())
+            views.setTextColor(R.id.widget_label_total, 0xFF94A3B8.toInt())
+            views.setTextColor(R.id.widget_label_today, 0xFF94A3B8.toInt())
+        }
+
         private fun updateWidgetFull(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -103,8 +121,7 @@ class BalanceWidgetProvider : AppWidgetProvider() {
             prefs: SharedPreferences,
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_balance)
-
-            // 金额（居中，看余额即可判断是否可用，不再单独显示状态）
+            applyGlassTextColors(context, views)
             val balance = prefs.getString(KEY_BALANCE, null)
             if (balance != null) {
                 views.setTextViewText(R.id.widget_balance, "${prefs.getString(KEY_SYMBOL, "¥")}$balance")

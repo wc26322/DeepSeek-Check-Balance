@@ -17,6 +17,7 @@
 
         <!-- 余额 -->
         <TextView
+            android:id="@+id/widget_label_balance"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -43,6 +44,7 @@
 
         <!-- 总 Tokens -->
         <TextView
+            android:id="@+id/widget_label_total"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -70,6 +72,7 @@
 
         <!-- 今日 Tokens -->
         <TextView
+            android:id="@+id/widget_label_today"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"

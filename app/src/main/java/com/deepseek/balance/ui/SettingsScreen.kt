@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
@@ -134,9 +135,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-        // 整页玻璃板（1 层）：为设置页提供玻璃折射底，卡片/顶栏透出它 ——
-        // 取代"每张卡各自 backdrop 层"，滚动时 RenderThread 只重建这一层（120Hz 关键）
-        GlassPage(Modifier.fillMaxSize())
+        // 官方 AndroidLiquidGlass 架构：背景直接透出光斑壁纸，每张卡自己 drawBackdrop 折射（见 LiquidCard.kt）
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 96.dp),
@@ -1074,6 +1073,8 @@ private fun AboutCard() {
         }
     }
     val githubUrl = "https://github.com/wc26322/DeepSeek-Check-Balance"
+    // 意见反馈邮箱（作者联系方式）
+    val feedbackEmail = "2632265922@qq.com"
 
     // 检查更新状态
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
@@ -1331,6 +1332,56 @@ private fun AboutCard() {
                     )
                     Icon(
                         imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 24.dp)
+                            .size(18.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            // 意见反馈：拉起系统邮件应用写信给作者（mailto: 只匹配邮箱类应用，不会串到微信/蓝牙）
+            // 预填主题与正文（版本 + 设备信息），方便用户描述问题时作者能直接定位环境
+            LiquidButton(
+                onClick = {
+                    try {
+                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse("mailto:")
+                            putExtra(Intent.EXTRA_EMAIL, arrayOf(feedbackEmail))
+                            putExtra(
+                                Intent.EXTRA_SUBJECT,
+                                "DeepSeek余额查询 意见反馈（v$versionName）"
+                            )
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "（请描述你遇到的问题或建议）\n\n\n" +
+                                    "————————\n" +
+                                    "App 版本：$versionName\n" +
+                                    "设备型号：${Build.MANUFACTURER} ${Build.MODEL}\n" +
+                                    "系统版本：Android ${Build.VERSION.RELEASE}（API ${Build.VERSION.SDK_INT}）\n"
+                            )
+                        }
+                        context.startActivity(Intent.createChooser(intent, "发送意见反馈"))
+                    } catch (_: Exception) {
+                        // 设备无邮件应用：提示作者邮箱，用户可自行复制
+                        Toast.makeText(context, "未检测到邮件应用，请发送至 $feedbackEmail", Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // 文字居中显示，左右留出图标区域
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "意见反馈",
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 40.dp, end = 16.dp),
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Mail,
                         contentDescription = null,
                         modifier = Modifier
                             .align(Alignment.CenterStart)

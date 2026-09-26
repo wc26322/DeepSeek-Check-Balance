@@ -1,15 +1,11 @@
 package com.deepseek.balance.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.isSpecified
@@ -30,16 +26,48 @@ val LocalLiquidCardBackdrop = staticCompositionLocalOf<Backdrop> {
 }
 
 // ============================================================================
-// 120Hz 性能架构（2026-09-06 重构）：
-// 此前「每张卡片各自一层 drawBackdrop」→ 滚动/拖动时 RenderThread 为可见的每张全宽卡
-// 逐层重建渲染命令（gfxinfo：GPU 3ms 但帧 18-44ms、legacy jank 68%——瓶颈在 RT 不在 GPU）。
-// 改为「@Composable GlassPage 整页一块玻璃板 + LiquidCard 轻量面片」：
-//   滚动时 RT 只需重建 1 块玻璃板，视觉上与逐卡玻璃等价（折射源同为 LocalLiquidCardBackdrop，
-//   该层不包含滚动内容，玻璃折射的始终是壁纸层）。
-// drawBackdrop 效果参数取官方 demo 的 lens(8,16)（较 16,32 再减半），降 RT 构建成本。
+// 2026-09-26 恢复官方 AndroidLiquidGlass 架构（用户要求参照官方项目）：
+// 每张卡片自己一层 drawBackdrop —— 官方 LazyScrollContainerContent.kt 逐字配方：
+//   drawBackdrop(backdrop, RoundedRectangle(32dp), effects = { vibrancy(); lens(16dp, 32dp) })
+// 官方 demo 用这个配方在 LazyColumn 里滚动 100 张玻璃卡，流畅度经过官方验证。
+// （v1.4.7 曾因 RT 帧耗时改为"整页 GlassPage 单层玻璃板 + 卡片轻量面片"，
+//   代价是卡片失去各自的折射细节；现按用户要求回归官方逐卡玻璃。
+//   若滚动掉帧回归，可再议：降 lens 参数或恢复混合方案，需用户拍板。）
 // ============================================================================
 
-/** 整页玻璃板：一个 drawBackdrop 层为整屏提供玻璃折射底。放在页面滚动容器的最底层 */
+/**
+ * 液态玻璃卡（官方配方）：卡片自身折射壁纸层（LocalLiquidCardBackdrop）。
+ * - surfaceColor：官方 LiquidButton.kt 同名参数的用法——画在玻璃表面保证文字可读；
+ * - surfaceOverlay：官方 drawBackdrop onDrawSurface 扩展点的透传（余额卡品牌渐变蒙层）。
+ */
+@Composable
+internal fun LiquidCard(
+    modifier: Modifier = Modifier,
+    cornerRadius: Dp = 32f.dp,
+    surfaceColor: Color = Color.Unspecified,
+    surfaceOverlay: (DrawScope.() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier.drawBackdrop(
+            backdrop = LocalLiquidCardBackdrop.current,
+            shape = { RoundedRectangle(cornerRadius) },
+            effects = {
+                vibrancy()
+                lens(16f.dp.toPx(), 32f.dp.toPx())
+            },
+            onDrawSurface = {
+                if (surfaceColor.isSpecified) {
+                    drawRect(surfaceColor)
+                }
+                surfaceOverlay?.invoke(this)
+            }
+        ),
+        content = content
+    )
+}
+
+/** 整页玻璃板：一个 drawBackdrop 层提供整块玻璃面。现仅用于调参弹窗（弹窗本身就是"一块玻璃"） */
 @Composable
 internal fun GlassPage(
     modifier: Modifier = Modifier,
@@ -54,29 +82,5 @@ internal fun GlassPage(
                 lens(8f.dp.toPx(), 16f.dp.toPx())
             },
         )
-    )
-}
-
-/**
- * 玻璃卡**轻量面片**（配合整页 GlassPage 使用）：不再自建 backdrop 层，
- * 只做圆角 + 半透明蒙层（surfaceColor），让下层整页玻璃板透出 → 保"玻璃卡"观感。
- * surfaceOverlay：原 drawBackdrop onDrawSurface 扩展点的透传（余额卡品牌渐变蒙层等）。
- */
-@Composable
-internal fun LiquidCard(
-    modifier: Modifier = Modifier,
-    cornerRadius: Dp = 32f.dp,
-    surfaceColor: Color = Color.Unspecified,
-    surfaceOverlay: (DrawScope.() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val base = modifier.clip(RoundedRectangle(cornerRadius))
-    val colored = if (surfaceColor.isSpecified) base.background(surfaceColor) else base
-    Column(
-        colored.drawWithContent {
-            surfaceOverlay?.invoke(this)
-            drawContent()
-        },
-        content = content
     )
 }

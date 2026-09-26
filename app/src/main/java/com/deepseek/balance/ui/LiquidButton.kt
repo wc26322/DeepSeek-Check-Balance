@@ -1,7 +1,6 @@
 package com.deepseek.balance.ui
 
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -16,15 +15,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import com.deepseek.balance.ui.utils.InteractiveHighlight
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -33,11 +35,13 @@ import kotlin.math.sin
 import kotlin.math.tanh
 
 /**
- * 实心胶囊按钮（2026-09-06 从液态玻璃改为实心，与首页余额卡视觉统一）：
- * - 背景：tint 指定用 tint，否则默认主题主色（primary），不透明实心
- * - 文字：按钮内 CompositionLocalProvider 强制 LocalContentColor = 白（与蓝底对比）
- * - 交互：保留官方 LiquidButton 的"按压跟随手指位移/形变"（tanh 阻尼），
- *   用 graphicsLayer 实现（无 backdrop 后不再需要离屏采样，天然更省渲染）
+ * 液态玻璃胶囊按钮 —— 2026-09-26 恢复官方 AndroidLiquidGlass 逐字实现
+ * （reference/.../components/LiquidButton.kt，v1.4.7 曾改为实心、现按用户要求回归玻璃）：
+ * - drawBackdrop：vibrancy + blur(2dp) + lens(12,24)，折射壁纸层（LocalLiquidCardBackdrop）；
+ * - layerBlock：按压跟随手指位移（tanh 阻尼）+ 方向性形变（官方原版数学）；
+ * - onDrawSurface：tint 用 Hue 混合染色 + 0.75 蒙层（官方原版）；surfaceColor 直接铺色。
+ * 与官方的差异仅一处：backdrop 参数带默认值（取 MainActivity 根层录制的光斑层），
+ * 以及按钮内默认内容色适配（tint 时白字 / 否则 onSurface）——官方把内容色留给调用方决定。
  */
 @Composable
 fun LiquidButton(
@@ -56,41 +60,54 @@ fun LiquidButton(
         )
     }
 
-    // 所有按钮统一白底深字（与「检查更新」一致）；tint/surfaceColor 只在玻璃时代做强调，
-    // 现在全部实心白，防止部分按钮（背景图片/调整玻璃效果等 tint=primary 的）还是蓝底
-    val container = MaterialTheme.colorScheme.surfaceContainerLowest
-    val contentColor = MaterialTheme.colorScheme.onSurface
-
     Row(
         modifier
-            .clip(Capsule())
-            .background(container)
-            .graphicsLayer {
-                if (isInteractive) {
-                    val width = size.width
-                    val height = size.height
+            .drawBackdrop(
+                backdrop = LocalLiquidCardBackdrop.current,
+                shape = { Capsule() },
+                effects = {
+                    vibrancy()
+                    blur(2f.dp.toPx())
+                    lens(12f.dp.toPx(), 24f.dp.toPx())
+                },
+                layerBlock = if (isInteractive) {
+                    {
+                        val width = size.width
+                        val height = size.height
 
-                    val progress = interactiveHighlight.pressProgress
-                    val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
+                        val progress = interactiveHighlight.pressProgress
+                        val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
 
-                    val maxOffset = size.minDimension
-                    val initialDerivative = 0.05f
-                    val offset = interactiveHighlight.offset
-                    translationX = maxOffset * tanh(initialDerivative * offset.x / maxOffset)
-                    translationY = maxOffset * tanh(initialDerivative * offset.y / maxOffset)
+                        val maxOffset = size.minDimension
+                        val initialDerivative = 0.05f
+                        val offset = interactiveHighlight.offset
+                        translationX = maxOffset * tanh(initialDerivative * offset.x / maxOffset)
+                        translationY = maxOffset * tanh(initialDerivative * offset.y / maxOffset)
 
-                    val maxDragScale = 4f.dp.toPx() / size.height
-                    val offsetAngle = atan2(offset.y, offset.x)
-                    scaleX =
-                        scale +
-                                maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) *
-                                (width / height).fastCoerceAtMost(1f)
-                    scaleY =
-                        scale +
-                                maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) *
-                                (height / width).fastCoerceAtMost(1f)
+                        val maxDragScale = 4f.dp.toPx() / size.height
+                        val offsetAngle = atan2(offset.y, offset.x)
+                        scaleX =
+                            scale +
+                                    maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) *
+                                    (width / height).fastCoerceAtMost(1f)
+                        scaleY =
+                            scale +
+                                    maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) *
+                                    (height / width).fastCoerceAtMost(1f)
+                    }
+                } else {
+                    null
+                },
+                onDrawSurface = {
+                    if (tint.isSpecified) {
+                        drawRect(tint, blendMode = BlendMode.Hue)
+                        drawRect(tint.copy(alpha = 0.75f))
+                    }
+                    if (surfaceColor.isSpecified) {
+                        drawRect(surfaceColor)
+                    }
                 }
-            }
+            )
             .clickable(
                 interactionSource = null,
                 indication = if (isInteractive) null else LocalIndication.current,
@@ -112,7 +129,13 @@ fun LiquidButton(
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     ).let { row ->
-        // 包装一层：默认按钮内容用适配颜色；显式指定颜色的调用不受影响
+        // 与官方差异（app 适配）：默认内容色——tint 染色玻璃用白字，素玻璃用 onSurface；
+        // 显式指定颜色的调用不受影响
+        val contentColor = if (tint.isSpecified) {
+            Color.White
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
         CompositionLocalProvider(LocalContentColor provides contentColor, content = { row })
     }
 }

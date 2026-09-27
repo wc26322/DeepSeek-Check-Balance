@@ -49,7 +49,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:singleLine="true"
-            android:text="总Tokens"
+            android:text="30天Tokens"
             android:textSize="10sp"
             android:textColor="#FF94A3B8"
             android:paddingTop="8dp"

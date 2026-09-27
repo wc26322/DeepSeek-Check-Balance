@@ -28,7 +28,15 @@ class WidgetAutoRefreshService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIF_ID, buildNotification())
+        // 后台启动前台服务在 Android 12+ 可能受限（尤其被小组件广播拉起时）。
+        // 起不来就立刻自我了断，避免系统抛出 ForegroundServiceStartNotAllowedException 拖垮进程。
+        try {
+            startForeground(NOTIF_ID, buildNotification())
+        } catch (t: Throwable) {
+            widgetLog("前台服务启动被拒，直接停止: ${t.javaClass.simpleName}")
+            stopSelf()
+            return
+        }
 
         workerThread = HandlerThread("widget-auto-refresh").also { it.start() }
         workerHandler = Handler(workerThread!!.looper)

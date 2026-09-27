@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 液态玻璃（深色）：半透明深色渐变 + 大圆角 + 细亮边，透出壁纸（亚克力观感） -->
+<!-- 折中实验版（深色模式）：95% 不透明纯色 + 24dp 圆角，无渐变无亮边。
+     目的：验证 OriginOS 玻璃化的触发阈值——若 95% 不触发，则定稿此版；
+     若仍触发，退回纯色不透明版。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <gradient
-        android:startColor="#F21C1C24"
-        android:endColor="#C01C1C24"
-        android:angle="270" />
+    <solid android:color="#F21C1C24" />
     <corners android:radius="24dp" />
-    <stroke android:width="1dp" android:color="#4DFFFFFF" />
 </shape>

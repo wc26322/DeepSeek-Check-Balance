@@ -6,12 +6,16 @@ import android.content.Intent
 import androidx.core.app.JobIntentService
 
 /**
- * 手动刷新（点击小组件刷新按钮）时触发：拉取最新余额并刷新对应小组件。
- * 手动刷新会播放 0 → 当前值 滚动动画；系统/后台定时刷新（自动刷新）不播放。
+ * 系统定时刷新（APPWIDGET_UPDATE，最短 30 分钟一次）时触发：拉取最新余额并刷新对应小组件。
+ * 不播放动画，静默更新。
+ *
+ * 注意：手动点刷新按钮**不走这里**——那条路径在 BalanceWidgetProvider.onReceive 里用
+ * goAsync 直接执行，避免 JobScheduler 排期延迟导致「点了没反应」。
  */
 class WidgetUpdateService : JobIntentService() {
 
     override fun onHandleWork(intent: Intent) {
+        widgetLog("onHandleWork enter animate=${intent.getBooleanExtra(EXTRA_ANIMATE, false)}")
         val appWidgetId = intent.getIntExtra(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
@@ -19,8 +23,8 @@ class WidgetUpdateService : JobIntentService() {
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
 
         // 复用共享刷新逻辑（内部已处理无 Key / 失败保留旧数据）
-        // 是否播放动画由 extra 决定，避免跨 job 复用实例时的状态串扰
-        WidgetRefresh.refresh(this, animate = intent.getBooleanExtra(EXTRA_ANIMATE, false))
+        val ok = WidgetRefresh.refresh(this, animate = intent.getBooleanExtra(EXTRA_ANIMATE, false))
+        widgetLog("onHandleWork result=$ok")
     }
 
     companion object {

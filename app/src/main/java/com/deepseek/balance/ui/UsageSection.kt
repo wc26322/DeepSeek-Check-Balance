@@ -257,19 +257,20 @@ private fun UsageOverviewCard(usage: UsageData) {
             Spacer(modifier = Modifier.height(12.dp))
             // 竖排三行：每行 装饰色条 + 标签 + 数值（色条不按比例，仅作色彩点缀区分）
             OverviewBar(
-                label = "总消费金额",
+                // 注意：消费金额来自 get_user_summary.total_costs，是全部历史累计，不是 30 天
+                label = "累计消费金额",
                 value = formatMoney(usage.totalCostCny),
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(modifier = Modifier.height(12.dp))
             OverviewBar(
-                label = "总请求次数",
+                label = "30天请求次数",
                 value = formatInt(usage.apiCalls),
                 color = Color(0xFF42A5F5),
             )
             Spacer(modifier = Modifier.height(12.dp))
             OverviewBar(
-                label = "总 Tokens",
+                label = "30天 Tokens",
                 value = formatLong(usage.totalTokens),
                 color = Color(0xFF4CAF50),
             )

@@ -1,5 +1,7 @@
 package com.deepseek.balance.network
 
+import com.deepseek.balance.model.BalanceInfo
+import com.deepseek.balance.model.BalanceResponse
 import com.deepseek.balance.model.DailyUsage
 import com.deepseek.balance.model.KeyUsage
 import com.deepseek.balance.model.ModelDailyUsage
@@ -15,6 +17,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -172,6 +175,46 @@ object UsageClient {
             }
             .sortedByDescending { it.daily.sumOf { x -> x.totalTokens } }
     }
+
+    /**
+     * 网页端余额（无 API Key 时的降级路径，2026-11 新增）。
+     *
+     * 数据源与网页「用量」页顶部的余额完全一致：同一个 get_user_summary 接口的
+     *   biz_data.normal_wallets[]（充值钱包）与 bonus_wallets[]（赠金钱包），每项 {balance, currency, token_estimation}
+     * （从前端分片 5697.js 的响应处理逻辑中核实）。映射到官方余额接口的 BalanceResponse：
+     *   toppedUp = normal，granted = bonus，total = 两者之和，is_available = 任一币种总额 > 0。
+     *
+     * 该接口未公开文档，字段变更时这里会先坏——所以只做兜底，有 API Key 时仍走官方 /user/balance。
+     */
+    suspend fun getBalanceWeb(token: String): BalanceResponse = withContext(Dispatchers.IO) {
+        val bd = bizData(fetchJson("/api/v0/users/get_user_summary", token))
+        class WalletAcc(var toppedUp: Double = 0.0, var granted: Double = 0.0)
+        val byCurrency = LinkedHashMap<String, WalletAcc>()
+        for ((key, isNormal) in listOf("normal_wallets" to true, "bonus_wallets" to false)) {
+            val arr = bd.optJSONArray(key) ?: continue
+            for (i in 0 until arr.length()) {
+                val w = arr.getJSONObject(i)
+                val acc = byCurrency.getOrPut(w.optString("currency", "CNY")) { WalletAcc() }
+                val amount = w.optDouble("balance", 0.0)
+                if (isNormal) acc.toppedUp += amount else acc.granted += amount
+            }
+        }
+        val infos = byCurrency.map { (currency, acc) ->
+            BalanceInfo(
+                currency = currency,
+                totalBalance = money(acc.toppedUp + acc.granted),
+                grantedBalance = money(acc.granted),
+                toppedUpBalance = money(acc.toppedUp),
+            )
+        }
+        BalanceResponse(
+            isAvailable = infos.any { (it.totalBalance.toDoubleOrNull() ?: 0.0) > 0.0 },
+            balanceInfos = infos,
+        )
+    }
+
+    /** 与官方余额接口一致的两位小数金额文本 */
+    private fun money(v: Double): String = String.format(Locale.US, "%.2f", v)
 
     private val MM_DD: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd")
 

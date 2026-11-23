@@ -286,8 +286,8 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
 
     SettingsCard {
         CardTitleWithTip(
-            title = "API Key",
-            tipDescription = "在 platform.deepseek.com/api_keys 页面创建。\n\nAPI Key 仅保存在本机（App 私有目录），不会上传到任何第三方服务器，用于调用官方余额接口。",
+            title = "API Key（选填）",
+            tipDescription = "选填。在 platform.deepseek.com/api_keys 页面创建。\n\n填写后余额走官方接口（api.deepseek.com），网页令牌过期时桌面小组件仍能刷新；不填则用网页登录令牌查余额。\n\n凭证仅加密保存在本机，不会上传到任何第三方服务器。",
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
@@ -333,7 +333,7 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = if (apiKey.isNotBlank()) "API Key 已保存，返回主界面即可查询"
-            else "在 platform.deepseek.com/api_keys 页面获取",
+            else "选填：不填则通过网页登录查余额",
             style = MaterialTheme.typography.labelSmall,
             color = if (apiKey.isNotBlank()) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,

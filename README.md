@@ -27,19 +27,19 @@
 
 ## 使用方法
 
-1. 在 [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) 获取你的 API Key。
-2. 打开 App，在「设置」页填入 API Key 并保存。
+1. （可选，推荐）在 [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) 获取你的 API Key——余额走官方接口，网页令牌过期后小组件仍能刷新。
+2. 打开 App，在「设置」页填入 API Key，或点「网页一键登录」（不填 Key 时余额通过网页令牌查询）。
 3. 返回主界面即可查看余额；如需桌面小组件，长按桌面空白处添加即可。
 
 ## 隐私与安全
 
 本项目的设计目标是「**数据完全本地可控**」：
 
-- **API Key / 网页令牌只存本地**：保存在 App 私有目录（`SharedPreferences`，仅本应用可读），不会上传到任何第三方服务器。
+- **API Key / 网页令牌只存本地**：保存在 App 私有目录（加密的 `SharedPreferences`，密钥在 Android Keystore，仅本应用可读），不会上传到任何第三方服务器。
 - **网络请求仅发往 DeepSeek 官方**：余额走官方接口 `https://api.deepseek.com/user/balance`（API Key 鉴权）；用量数据走官方网页接口 `platform.deepseek.com`（网页令牌鉴权）。项目内**没有任何**统计、崩溃上报或广告 SDK（无 Firebase / 友盟 / Bugly 等）。
 - **可自行验证**：用抓包工具（如 HttpCanary、Charles）查看 App 流量，只会看到发往 `api.deepseek.com` 与 `platform.deepseek.com` 的请求，不会看到其他域名。
 
-> 说明：当前 API Key 以**明文**形式存储于 App 私有目录（其他应用无权限读取）。若设备已 root 或通过 `adb backup` 导出，明文理论上可被读取。对安全性要求更高的用户，可将存储改为 `EncryptedSharedPreferences`（依赖已就绪，代码层面替换即可），此项可作为后续增强。
+> 说明：API Key 与网页令牌通过 `EncryptedSharedPreferences` 加密存储（密钥保存在 Android Keystore），并已关闭应用备份（`allowBackup=false` + `dataExtractionRules`），不会随云备份或设备迁移导出。旧版本的明文数据会在首次启动时自动迁移到加密文件。设备已 root 时仍存在被读取的理论风险，建议为本 App 单独创建一把 API Key，泄露时直接吊销即可。
 
 ## 构建
 

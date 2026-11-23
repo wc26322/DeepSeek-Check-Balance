@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
+import com.deepseek.balance.data.AppPrefs
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
 
@@ -41,7 +42,7 @@ object WidgetCountUpAnimator {
 
     /** 读取 prefs 里的三个数值（格式化文本里的逗号会被剥掉） */
     private fun readAmounts(context: Context): Amounts {
-        val prefs = context.getSharedPreferences("deepseek_balance", Context.MODE_PRIVATE)
+        val prefs = AppPrefs.get(context)
         return Amounts(
             parseAmount(prefs.getString(BalanceWidgetProvider.KEY_BALANCE, "0")),
             parseAmount(prefs.getString(BalanceWidgetProvider.KEY_TOTAL_TOKENS, "0")),

@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import com.deepseek.balance.model.UsageData
 import com.deepseek.balance.network.ApiClient
 import com.deepseek.balance.network.UsageClient
+import com.deepseek.balance.data.AppPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,8 +26,6 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 3) 刷新所有已添加的小组件实例
  */
 object WidgetRefresh {
-
-    private const val PREFS = "deepseek_balance"
 
     /** 单次手动刷新的硬超时：到点强制收尾，避免「刷新中…」和并发守卫一起卡死 */
     private const val REFRESH_TIMEOUT_MS = 15_000L
@@ -84,7 +83,7 @@ object WidgetRefresh {
 
     /** 写入 / 清除「正在刷新」状态（带过期时间，进程被杀也不会永久卡在刷新中） */
     private fun markRefreshing(context: Context, refreshing: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        AppPrefs.get(context)
             .edit()
             .putLong(
                 BalanceWidgetProvider.KEY_REFRESHING_UNTIL,
@@ -103,10 +102,11 @@ object WidgetRefresh {
      * @param animate 是否播放 0 → 当前值 滚动动画（仅手动刷新时传 true，自动刷新不打扰）
      */
     fun refresh(context: Context, animate: Boolean = false): Boolean {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = AppPrefs.get(context)
         val apiKey = prefs.getString("api_key", "") ?: ""
-        if (apiKey.isBlank()) {
-            widgetLog("refresh: apiKey 为空，直接返回 false")
+        val webToken = prefs.getString("web_token", "") ?: ""
+        if (apiKey.isBlank() && webToken.isBlank()) {
+            widgetLog("refresh: apiKey 与网页令牌均为空，直接返回 false")
             return false
         }
 
@@ -120,7 +120,11 @@ object WidgetRefresh {
                 if (!WidgetCountUpAnimator.isRunning()) updateAllWidgets(context)
             }
 
-            val response = kotlinx.coroutines.runBlocking { ApiClient.getBalance(apiKey) }
+            // 有 API Key 走官方接口；没有则用网页令牌兜底（与主界面 doRefresh 同一降级规则）
+            val response = kotlinx.coroutines.runBlocking {
+                if (apiKey.isNotBlank()) ApiClient.getBalance(apiKey) else UsageClient.getBalanceWeb(webToken)
+            }
+            widgetLog("余额来源=${if (apiKey.isNotBlank()) "api_key(官方接口)" else "web_token(网页令牌兑底)"}")
             val cny = response.balanceInfos.find { it.currency == "CNY" }
             prefs.edit()
                 .putString(BalanceWidgetProvider.KEY_BALANCE, cny?.totalBalance ?: "0.00")
@@ -146,7 +150,7 @@ object WidgetRefresh {
 
     /** 拉取用量并保存总/今日 Tokens（需网页令牌；失败保留旧值） */
     fun refreshTokens(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = AppPrefs.get(context)
         val webToken = prefs.getString("web_token", "") ?: ""
         if (webToken.isBlank()) return
         try {

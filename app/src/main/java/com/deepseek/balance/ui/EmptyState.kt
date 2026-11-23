@@ -32,7 +32,7 @@ internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "在设置页填入 API Key 后即可查询 DeepSeek 账户余额，API Key 仅保存在本机。",
+                    text = "在设置页填入 API Key，或点「网页一键登录」后即可查询余额；凭证仅加密保存在本机。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -45,7 +45,7 @@ internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("前往设置填写 API Key")
+                    Text("前往设置")
                 }
             } else {
                 Text(

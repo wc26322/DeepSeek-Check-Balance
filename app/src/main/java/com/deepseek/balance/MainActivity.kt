@@ -62,7 +62,7 @@ import java.util.*
 class MainActivity : ComponentActivity() {
 
     private val prefs by lazy {
-        getSharedPreferences("deepseek_balance", Context.MODE_PRIVATE)
+        com.deepseek.balance.data.AppPrefs.get(this)
     }
 
     private lateinit var jankStats: JankStats
@@ -436,6 +436,13 @@ private fun BalanceAppContent(
                         } catch (e: Exception) {
                             e
                         }
+                    } else if (webToken.isNotBlank()) {
+                        // 无 API Key：用网页令牌兜底查余额（与网页「用量」页顶部的数字同源）
+                        try {
+                            UsageClient.getBalanceWeb(webToken)
+                        } catch (e: Exception) {
+                            e
+                        }
                     } else {
                         null
                     }
@@ -467,6 +474,10 @@ private fun BalanceAppContent(
             }
 
             if (balanceResp != null) {
+                Log.i(
+                    "BalanceSource",
+                    "余额来源=${if (apiKey.isNotBlank()) "api_key(官方接口)" else "web_token(网页令牌兑底)"}",
+                )
                 val prev = result?.balanceInfos?.find { it.currency == "CNY" }?.totalBalance
                 val new = balanceResp!!.balanceInfos.find { it.currency == "CNY" }?.totalBalance
                 result = balanceResp

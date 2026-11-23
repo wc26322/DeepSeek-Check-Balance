@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ 的云备份 / 设备迁移规则：凭证一律不进云备份、不随设备迁移。
+     allowBackup="false" 覆盖 Android 11 及以下；本规则覆盖 12+（lint DataExtractionRules 建议，
+     避免未来 allowBackup 被移除后失效）。 -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="root" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules>

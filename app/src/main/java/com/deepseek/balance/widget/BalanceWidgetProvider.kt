@@ -10,6 +10,7 @@ import android.content.SharedPreferences
 import android.widget.RemoteViews
 import com.deepseek.balance.MainActivity
 import com.deepseek.balance.R
+import com.deepseek.balance.data.AppPrefs
 
 class BalanceWidgetProvider : AppWidgetProvider() {
 
@@ -64,8 +65,6 @@ class BalanceWidgetProvider : AppWidgetProvider() {
         /** 「刷新中」状态最长保留时间，超时后自动按正常状态渲染（兜底，防止卡在刷新中） */
         const val REFRESHING_TIMEOUT_MS = 20_000L
 
-        private const val PREFS = "deepseek_balance"
-
         fun isRefreshing(prefs: SharedPreferences): Boolean =
             prefs.getLong(KEY_REFRESHING_UNTIL, 0L) > System.currentTimeMillis()
 
@@ -87,7 +86,7 @@ class BalanceWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int?,
             frame: AnimFrame? = null,
         ) {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val prefs = AppPrefs.get(context)
             val ids = if (appWidgetId != null) {
                 intArrayOf(appWidgetId)
             } else {
@@ -101,23 +100,6 @@ class BalanceWidgetProvider : AppWidgetProvider() {
                 ComponentName(context, BalanceWidgetProvider::class.java),
             )
 
-        /**
-         * 液态玻璃小组件：背景 drawable 会自动按系统深/浅色切换（drawable-night），
-         * 这里同步适配文字颜色——深色玻璃上改用亮色，保证可读（浅色玻璃用布局默认深字）。
-         */
-        private fun applyGlassTextColors(context: Context, views: RemoteViews) {
-            val nightMode = context.resources.configuration.uiMode and
-                android.content.res.Configuration.UI_MODE_NIGHT_MASK
-            if (nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES) return
-            views.setTextColor(R.id.widget_balance, 0xFFF5F7FA.toInt())
-            views.setTextColor(R.id.widget_total_tokens, 0xFF5CC8F6.toInt())
-            views.setTextColor(R.id.widget_today_tokens, 0xFF55E08C.toInt())
-            views.setTextColor(R.id.widget_update_time, 0xFF94A3B8.toInt())
-            views.setTextColor(R.id.widget_label_balance, 0xFF94A3B8.toInt())
-            views.setTextColor(R.id.widget_label_total, 0xFF94A3B8.toInt())
-            views.setTextColor(R.id.widget_label_today, 0xFF94A3B8.toInt())
-        }
-
         private fun updateWidgetFull(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -126,7 +108,6 @@ class BalanceWidgetProvider : AppWidgetProvider() {
             frame: AnimFrame? = null,
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_balance)
-            applyGlassTextColors(context, views)
 
             val symbol = prefs.getString(KEY_SYMBOL, "¥") ?: "¥"
             if (frame != null) {

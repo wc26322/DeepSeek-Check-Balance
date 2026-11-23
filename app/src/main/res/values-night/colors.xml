@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件文字颜色的深色变体：与 drawable-night/widget_bg（#F21C1C24 深玻璃底）配套。
+     取值沿用原 BalanceWidgetProvider.applyGlassTextColors 的夜色配色（v1.4.6 引入），
+     改由桌面按资源限定符解析，见 values/colors.xml 顶部注释。 -->
+<resources>
+    <color name="widget_balance_text">#FFF5F7FA</color>
+    <color name="widget_total_tokens_text">#FF5CC8F6</color>
+    <color name="widget_today_tokens_text">#FF55E08C</color>
+    <color name="widget_label_text">#FF94A3B8</color>
+    <color name="widget_refresh_icon">#FFCBD5E1</color>
+</resources>

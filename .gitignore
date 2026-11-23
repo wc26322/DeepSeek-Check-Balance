@@ -29,3 +29,7 @@ local.properties
 # Local test artifacts (not part of the project)
 ui_s.xml
 deploy.sh
+
+# 性能测量脚本输出（perf/）
+perf/*.txt
+perf/*.png

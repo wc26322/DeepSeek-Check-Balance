@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#E8F0FE</color>
+
+    <!-- 小组件文字颜色：由桌面(Launcher)在渲染时按 uiMode 解析，
+         values-night 提供深色变体 —— 与 widget_bg 的 drawable-night 同机制，
+         不依赖 App 进程的 uiMode 判断（OriginOS 等 ROM 的深色模式下
+         App 进程 uiMode 可能为 light，代码判断会失效，见 2026-11 修复）。 -->
+    <color name="widget_balance_text">#FF1B1B21</color>
+    <color name="widget_total_tokens_text">#FF0EA5E9</color>
+    <color name="widget_today_tokens_text">#FF22C55E</color>
+    <color name="widget_label_text">#FF94A3B8</color>
+    <color name="widget_refresh_icon">#FF334155</color>
 </resources>

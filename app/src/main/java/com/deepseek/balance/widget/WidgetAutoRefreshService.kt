@@ -14,6 +14,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.deepseek.balance.MainActivity
 import com.deepseek.balance.R
+import com.deepseek.balance.data.AppPrefs
 
 /**
  * 前台服务：按设定的间隔在后台自动拉取 DeepSeek 余额并刷新桌面小组件。
@@ -56,7 +57,7 @@ class WidgetAutoRefreshService : Service() {
     }
 
     private fun readIntervalSec(): Long {
-        val sec = getSharedPreferences("deepseek_balance", MODE_PRIVATE)
+        val sec = AppPrefs.get(this)
             .getInt(KEY_INTERVAL_SEC, DEFAULT_INTERVAL_SEC)
             .coerceAtLeast(MIN_INTERVAL_SEC)
             .coerceAtMost(MAX_INTERVAL_SEC)

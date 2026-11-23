@@ -23,8 +23,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.deepseek.balance.model.BalanceResponse
 import com.deepseek.balance.model.UsageData
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -117,12 +115,11 @@ fun MainScreen(
         // 背景透明：透出录制层内的环境彩色光斑（玻璃效果的色彩来源）
         containerColor = Color.Transparent,
     ) { innerPadding ->
-        // 液态玻璃：backdrop 录制滚动内容供悬浮玻璃栏折射
-        val backdrop = rememberLayerBackdrop()
-
         Box(modifier = Modifier.fillMaxSize()) {
         // 官方 AndroidLiquidGlass 架构：没有"整页玻璃底板"，背景（光斑壁纸）直接透出，
         // 每张卡片自己 drawBackdrop 折射壁纸层（见 LiquidCard.kt）
+        // TopBar 同样改为折射壁纸层（LocalLiquidCardBackdrop），不再 layerBackdrop 录制滚动内容：
+        // 录制滚动内容 = 滚动期间每帧重录整页纹理，是 RenderThread 的额外开销（2026-11 性能实测后调整）
         // 禁用系统 overscroll：顶部下拉由 PullToRefreshBox 独占（无回弹）；下拉刷新手势与系统回弹在系统层面冲突，故整体关闭
         CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
         PullToRefreshBox(
@@ -131,7 +128,6 @@ fun MainScreen(
             state = pullState,
             modifier = Modifier
                 .fillMaxSize()
-                .layerBackdrop(backdrop)
                 .padding(innerPadding),
             indicator = {
                 // Expressive 官方 LoadingIndicator：下拉时出现箭头 + 容器，松手后转圈，自带位移/缩放动画
@@ -184,7 +180,8 @@ fun MainScreen(
                 // API Key 提示卡（未填写时显示，常驻不随刷新消失）
                 if (!hasData) {
                     EmptyState(
-                        hasKey = hasKey,
+                        // 有网页令牌也能查余额（降级路径），所以“能查”的条件是二者任一
+                        hasKey = hasKey || hasWebToken,
                         onSettingsClick = onSettingsClick,
                     )
                 }
@@ -214,7 +211,7 @@ fun MainScreen(
 
         // 悬浮玻璃栏：声明在 PullToRefreshBox 之后 → z 序在上，滚动内容从其下方穿过
         TopBar(
-            backdrop = backdrop,
+            backdrop = LocalLiquidCardBackdrop.current,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding() // edge-to-edge：避开透明状态栏

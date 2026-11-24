@@ -1,6 +1,7 @@
 package com.deepseek.balance.ui
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -13,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +48,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -104,11 +108,26 @@ fun SettingsScreen(
     onWidgetIntervalSecChange: (Int) -> Unit,
     backgroundImagePath: String,
     onBackgroundImageChange: (String) -> Unit,
+    liquidGlassTuning: LiquidGlassTuning,
+    onLiquidGlassTuningChange: (LiquidGlassTuning) -> Unit,
+    onLiquidGlassTuningCommit: (LiquidGlassTuning) -> Unit,
     navGlassTuning: NavGlassTuning,
     onNavGlassTuningChange: (NavGlassTuning) -> Unit,
 ) {
-    // 导航栏玻璃效果调参弹窗（渲染在 LazyColumn 之外，避免 item 无穷约束崩溃）
-    var navGlassDialogOpen by remember { mutableStateOf(false) }
+    // 全局液态玻璃效果调参弹窗（渲染在 LazyColumn 之外，避免 item 无穷约束崩溃）
+    var glassLabOpen by remember { mutableStateOf(false) }
+    if (glassLabOpen) {
+        BackHandler { glassLabOpen = false }
+        GlassPlaygroundPage(
+            tuning = liquidGlassTuning,
+            navTuning = navGlassTuning,
+            onTuningChange = onLiquidGlassTuningChange,
+            onTuningCommit = onLiquidGlassTuningCommit,
+            onNavTuningChange = onNavGlassTuningChange,
+            onBack = { glassLabOpen = false },
+        )
+        return
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -176,23 +195,15 @@ fun SettingsScreen(
             }
             item(contentType = "navglass") {
                 NavGlassCard(
-                    tuning = navGlassTuning,
-                    onTuningChange = onNavGlassTuningChange,
-                    onOpenDialog = { navGlassDialogOpen = true },
+
+                    onOpenDialog = { glassLabOpen = true },
                 )
             }
             item(contentType = "about") {
                 AboutCard()
             }
         }
-        // 调参弹窗：在 LazyColumn 之外渲染（覆盖设置页、留出底部导航栏），避免 item 无穷约束
-        if (navGlassDialogOpen) {
-            NavGlassDialog(
-                tuning = navGlassTuning,
-                onTuningChange = onNavGlassTuningChange,
-                onDismiss = { navGlassDialogOpen = false },
-            )
-        }
+
         }
     }
 }
@@ -203,8 +214,7 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     // surfaceColor 半透明叠在玻璃表面：保留原 surfaceContainerLowest 的可读性，又透出光斑折射。
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        // 0.3：薄蒙层保文字可读，同时让光斑折射透出来（0.6 会把玻璃感盖死）
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
+
     ) {
         Column(modifier = Modifier.padding(20.dp), content = content)
     }
@@ -272,10 +282,51 @@ private fun OptionBox(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.35f))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.08f))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         content = content,
     )
+}
+
+@Composable
+internal fun SettingsActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+) {
+    val darkTheme = isSystemInDarkTheme()
+    val contentColor = if (darkTheme) Color(0xFFF2F3F5) else Color(0xFF24272C)
+    LiquidButton(
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = text,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = if (icon != null) 32.dp else 0.dp),
+                color = contentColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 8.dp)
+                        .size(18.dp),
+                )
+            }
+        }
+    }
 }
 
 // ===================== API Key =====================
@@ -323,12 +374,11 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
         )
         if (apiKey.isNotBlank()) {
             Spacer(modifier = Modifier.height(10.dp))
-            LiquidButton(
+            SettingsActionButton(
+                text = "清除 API Key",
                 onClick = { onApiKeyChange("") },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("清除 API Key", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            }
+            )
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
@@ -393,21 +443,19 @@ private fun WebTokenCard(
         Spacer(modifier = Modifier.height(10.dp))
         if (webToken.isBlank()) {
             // 未配置令牌：主推一键登录
-            LiquidButton(
+            SettingsActionButton(
+                text = "网页一键登录（免手动复制）",
                 onClick = onWebLoginClick,
                 modifier = Modifier.fillMaxWidth(),
-                tint = MaterialTheme.colorScheme.primary,
-            ) {
-                Text("网页一键登录（免手动复制）", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            }
+
+            )
         } else {
             // 已配置：清除入口
-            LiquidButton(
+            SettingsActionButton(
+                text = "清除网页令牌",
                 onClick = { onWebTokenChange("") },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("清除网页令牌", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            }
+            )
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
@@ -683,20 +731,19 @@ private fun BackgroundImageCard(
             tipDescription = "选中的图片将作为全局背景，玻璃卡片、导航栏等会折射它（官方 demo 的壁纸玩法）。\n\n不设置时使用默认的多彩环境光斑背景。",
         )
         Spacer(modifier = Modifier.height(12.dp))
-        LiquidButton(
+        SettingsActionButton(
+            text = "选择背景图片",
             onClick = {
                 pickMedia.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
             modifier = Modifier.fillMaxWidth(),
-            tint = MaterialTheme.colorScheme.primary,
-        ) {
-            Text("选择背景图片", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        }
+        )
         if (backgroundImagePath.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
-            LiquidButton(
+            SettingsActionButton(
+                text = "恢复默认光斑背景",
                 onClick = {
                     val oldPath = backgroundImagePath
                     onBackgroundImageChange("")
@@ -706,38 +753,32 @@ private fun BackgroundImageCard(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("恢复默认光斑背景", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            }
+            )
         }
     }
 }
 
 @Composable
 private fun NavGlassCard(
-    tuning: NavGlassTuning,
-    onTuningChange: (NavGlassTuning) -> Unit,
     onOpenDialog: () -> Unit,
 ) {
     SettingsCard {
         CardTitleWithTip(
-            title = "导航栏玻璃效果",
-            tipDescription = "底部玻璃栏和滑块的全部液态玻璃参数：导航栏高度、边缘扭曲（带宽/强度）、背景模糊、玻璃底色、滑块磨砂、按住外移、边缘模糊、彩色色散，以及切换手感（粘滞/量化/震动）。\n\n所有滑块均实时生效并自动保存。",
+            title = "全局液态玻璃效果",
+            tipDescription = "模糊、折射、透明度和色散统一应用于首页顶部栏、所有卡片、底部导航及设置按钮。导航高度、按压外移和切换手感仅控制底部导航交互。\n\n所有滑块均实时生效并自动保存。",
         )
         Spacer(modifier = Modifier.height(12.dp))
         // 点击弹窗调参：弹窗在 LazyColumn 之外渲染，且不遮底部导航栏，可实时查看效果
-        LiquidButton(
+        SettingsActionButton(
+            text = "进入玻璃效果实验室",
             onClick = onOpenDialog,
             modifier = Modifier.fillMaxWidth(),
-            tint = MaterialTheme.colorScheme.primary,
-        ) {
-            Text("调整玻璃效果", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        }
+        )
     }
 }
 
 /**
- * 导航栏玻璃效果调参弹窗（设置页内覆盖层，非系统 Dialog 窗口）：
+ * 全局液态玻璃效果调参弹窗（设置页内覆盖层，非系统 Dialog 窗口）：
  * 居中悬浮小窗口，四边均不贴屏幕边（左右 20dp、上下留 14% 空隙）→
  * 底部导航栏完整露出，拖动滑块实时看效果。
  */
@@ -745,6 +786,8 @@ private fun NavGlassCard(
 private fun NavGlassDialog(
     tuning: NavGlassTuning,
     onTuningChange: (NavGlassTuning) -> Unit,
+    glassTuning: LiquidGlassTuning,
+    onGlassTuningChange: (LiquidGlassTuning) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // 弹窗内拖动滑块时锁定面板自身滚动（局部状态，不影响设置页）
@@ -759,15 +802,23 @@ private fun NavGlassDialog(
 
     // 稳定回调：拖动任一滑块导致整体重组时，非拖动项参数身份不变 → 跳过重组，
     // 避免 10 个静止滑块每帧重建各自的 drawBackdrop（调参掉帧的另一主因）
-    val cChroma = rememberStableBoolCallback { throttledChange(tuning.copy(chromaticAberration = it)) }
+    val cChroma = rememberStableBoolCallback {
+        onGlassTuningChange(glassTuning.copy(chromaticAberration = it))
+    }
     val cHaptics = rememberStableBoolCallback { throttledChange(tuning.copy(detentHaptics = it)) }
     val cHeight = rememberStableFloatCallback { throttledChange(tuning.copy(barHeightDp = it)) }
-    val cRefrH = rememberStableFloatCallback { throttledChange(tuning.copy(refractionHeightDp = it)) }
-    val cRefrA = rememberStableFloatCallback { throttledChange(tuning.copy(refractionAmountDp = it)) }
-    val cEdgeBlur = rememberStableFloatCallback { throttledChange(tuning.copy(edgeBlurDp = it)) }
-    val cBlur = rememberStableFloatCallback { throttledChange(tuning.copy(blurDp = it)) }
-    val cAlpha = rememberStableFloatCallback { throttledChange(tuning.copy(containerAlpha = it)) }
-    val cCapsuleBlur = rememberStableFloatCallback { throttledChange(tuning.copy(capsuleBlurDp = it)) }
+    val cRefrH = rememberStableFloatCallback {
+        onGlassTuningChange(glassTuning.copy(refractionHeightDp = it))
+    }
+    val cRefrA = rememberStableFloatCallback {
+        onGlassTuningChange(glassTuning.copy(refractionAmountDp = it))
+    }
+    val cBlur = rememberStableFloatCallback {
+        onGlassTuningChange(glassTuning.copy(blurDp = it))
+    }
+    val cAlpha = rememberStableFloatCallback {
+        onGlassTuningChange(glassTuning.copy(surfaceAlpha = it))
+    }
     val cStretchV = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchVDp = it)) }
     val cStretchH = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchHDp = it)) }
     val cDetent = rememberStableFloatCallback { throttledChange(tuning.copy(detentStrength = it)) }
@@ -798,13 +849,7 @@ private fun NavGlassDialog(
                 .clip(RoundedCornerShape(28.dp)),
         ) {
             GlassPage(Modifier.fillMaxSize())
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.45f),
-                    ),
-            )
+
             CompositionLocalProvider(LocalSliderDraggingChanged provides { dialogDragging = it }) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -821,14 +866,14 @@ private fun NavGlassDialog(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "导航栏玻璃效果",
+                                    "全局液态玻璃效果",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onBackground,
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 InfoTip(
                                     description = "所有滑块实时生效，弹窗不遮挡底部导航栏，可边调边看效果。",
-                                    title = "导航栏玻璃效果",
+                                    title = "全局液态玻璃效果",
                                 )
                             }
                             IconButton(onClick = onDismiss) {
@@ -856,10 +901,10 @@ private fun NavGlassDialog(
                                 ) {
                                     Text("彩色色散边", fontSize = 15.sp)
                                     Spacer(modifier = Modifier.width(2.dp))
-                                    InfoTip(description = "滑块边缘的彩色色散（彩虹边），渐变更柔和的玻璃质感。", title = "彩色色散边")
+                                    InfoTip(description = "所有玻璃组件边缘共用轻微色散，默认开启。", title = "彩色色散边")
                                 }
                                 LiquidToggle(
-                                    selected = { tuning.chromaticAberration },
+                                    selected = { glassTuning.chromaticAberration },
                                     onSelect = cChroma,
                                 )
                             }
@@ -867,7 +912,63 @@ private fun NavGlassDialog(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // 段落震动开关
+
+                    item {
+                        Text(
+                            text = "全局玻璃材质",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    item {
+                        GlassSlider(
+                            label = "边缘扭曲带宽",
+                            hint = "所有玻璃组件边缘的厚度，默认 12dp",
+                            value = glassTuning.refractionHeightDp,
+                            valueRange = 0f..24f,
+                            unit = "dp",
+                            onChange = cRefrH,
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "边缘扭曲强度",
+                            hint = "所有玻璃组件边缘内容的弯曲程度，默认 24dp",
+                            value = glassTuning.refractionAmountDp,
+                            valueRange = 0f..36f,
+                            unit = "dp",
+                            onChange = cRefrA,
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "背景模糊半径",
+                            hint = "所有玻璃组件的背景柔化程度，默认 2dp",
+                            value = glassTuning.blurDp,
+                            valueRange = 0f..8f,
+                            unit = "dp",
+                            onChange = cBlur,
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "玻璃蒙层浓度",
+                            hint = "所有组件共用；浅色模式使用此浓度，深色模式使用其三分之二。默认 6%",
+                            value = glassTuning.surfaceAlpha,
+                            valueRange = 0f..0.24f,
+                            unit = "%",
+                            onChange = cAlpha,
+                        )
+                    }
+                    item {
+                        Text(
+                            text = "导航交互",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     item {
                         OptionBox {
                             Row(
@@ -891,76 +992,14 @@ private fun NavGlassDialog(
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                     }
-
-                    // 10 个调参滑块
                     item {
                         GlassSlider(
                             label = "导航栏高度",
-                            hint = "整条玻璃栏背景板的高度：胶囊、图标、手势层保持官方 56dp 不变，只升降背景玻璃板。默认 72dp",
+                            hint = "只调整底部导航背景板高度；胶囊、图标和手势层保持 56dp。默认 64dp",
                             value = tuning.barHeightDp,
                             valueRange = 60f..104f,
                             unit = "dp",
                             onChange = cHeight,
-                        )
-                    }
-                    item {
-                        GlassSlider(
-                            label = "边缘扭曲带宽",
-                            hint = "滑块边缘玻璃的“厚度”",
-                            value = tuning.refractionHeightDp,
-                            valueRange = 0f..16f,
-                            unit = "dp",
-                            onChange = cRefrH,
-                        )
-                    }
-                    item {
-                        GlassSlider(
-                            label = "边缘扭曲强度",
-                            hint = "边缘内内容被弯曲的程度",
-                            value = tuning.refractionAmountDp,
-                            valueRange = 0f..24f,
-                            unit = "dp",
-                            onChange = cRefrA,
-                        )
-                    }
-                    item {
-                        GlassSlider(
-                            label = "边缘模糊",
-                            hint = "只雾化滑块边缘一圈（环宽=模糊值），中心不受影响",
-                            value = tuning.edgeBlurDp,
-                            valueRange = 0f..16f,
-                            unit = "dp",
-                            onChange = cEdgeBlur,
-                        )
-                    }
-                    item {
-                        GlassSlider(
-                            label = "背景模糊半径",
-                            hint = "整条玻璃栏磨砂感",
-                            value = tuning.blurDp,
-                            valueRange = 0f..24f,
-                            unit = "dp",
-                            onChange = cBlur,
-                        )
-                    }
-                    item {
-                        GlassSlider(
-                            label = "玻璃底色浓度",
-                            hint = "玻璃表面白色蒙层的浓淡",
-                            value = tuning.containerAlpha,
-                            valueRange = 0f..1f,
-                            unit = "%",
-                            onChange = cAlpha,
-                        )
-                    }
-                    item {
-                        GlassSlider(
-                            label = "滑块磨砂度",
-                            hint = "雾化滑块内透出的内容，拉高可弱化“镜面”感",
-                            value = tuning.capsuleBlurDp,
-                            valueRange = 0f..16f,
-                            unit = "dp",
-                            onChange = cCapsuleBlur,
                         )
                     }
                     item {
@@ -1006,12 +1045,14 @@ private fun NavGlassDialog(
 
                     // 恢复默认
                     item {
-                        LiquidButton(
-                            onClick = { onTuningChange(NavGlassTuning()) },
+                        SettingsActionButton(
+                            text = "恢复默认",
+                            onClick = {
+                                onGlassTuningChange(LiquidGlassTuning())
+                                onTuningChange(NavGlassTuning())
+                            },
                             modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("恢复默认", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                        }
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         } // 恢复默认 item
                     } // LazyColumn
@@ -1021,13 +1062,14 @@ private fun NavGlassDialog(
     } // NavGlassDialog
 
 @Composable
-private fun GlassSlider(
+internal fun GlassSlider(
     label: String,
     hint: String,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     unit: String,
     onChange: (Float) -> Unit,
+    onValueChangeFinished: (Float) -> Unit = {},
 ) {
     Column {
         OptionBox {
@@ -1055,6 +1097,7 @@ private fun GlassSlider(
                 onValueChange = onChange,
                 valueRange = valueRange,
                 onDraggingChanged = LocalSliderDraggingChanged.current,
+                onValueChangeFinished = onValueChangeFinished,
             )
         }
     }
@@ -1272,44 +1315,22 @@ private fun AboutCard() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(24.dp))
-            // 检查更新按钮：状态驱动文案；发现新版本时切换为主色强调
-            val isUpdateFound = updateState is UpdateState.Found
-            LiquidButton(
+            SettingsActionButton(
+                text = when (val s = updateState) {
+                    UpdateState.Idle -> "检查更新"
+                    UpdateState.Checking -> "检查中…"
+                    UpdateState.Latest -> "已是最新版本"
+                    is UpdateState.Found -> "发现新版本 ${s.release.version}，点击下载"
+                    UpdateState.Error -> "检查失败，点击重试"
+                },
                 onClick = onUpdateClick,
                 modifier = Modifier.fillMaxWidth(),
-                tint = if (isUpdateFound) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.35f),
-            ) {
-                // 文字居中显示，左右留出图标区域（避免长文本与左侧图标重叠）
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = when (val s = updateState) {
-                            UpdateState.Idle -> "检查更新"
-                            UpdateState.Checking -> "检查中…"
-                            UpdateState.Latest -> "已是最新版本"
-                            is UpdateState.Found ->
-                                "发现新版本 ${s.release.version}，点击下载"
-                            UpdateState.Error -> "检查失败，点击重试"
-                        },
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 40.dp, end = 16.dp),
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 24.dp)
-                            .size(18.dp),
-                    )
-                }
-            }
+                icon = Icons.Default.Refresh,
+            )
             Spacer(modifier = Modifier.height(10.dp))
             // GitHub 开源地址
-            LiquidButton(
+            SettingsActionButton(
+                text = "GitHub开源地址",
                 onClick = {
                     try {
                         context.startActivity(
@@ -1319,31 +1340,13 @@ private fun AboutCard() {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                // 文字居中显示，左右留出图标区域
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "GitHub开源地址",
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 40.dp, end = 16.dp),
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 24.dp)
-                            .size(18.dp),
-                    )
-                }
-            }
+                icon = Icons.Default.Star,
+            )
             Spacer(modifier = Modifier.height(10.dp))
             // 意见反馈：拉起系统邮件应用写信给作者（mailto: 只匹配邮箱类应用，不会串到微信/蓝牙）
             // 预填主题与正文（版本 + 设备信息），方便用户描述问题时作者能直接定位环境
-            LiquidButton(
+            SettingsActionButton(
+                text = "意见反馈",
                 onClick = {
                     try {
                         val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -1369,27 +1372,8 @@ private fun AboutCard() {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                // 文字居中显示，左右留出图标区域
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "意见反馈",
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 40.dp, end = 16.dp),
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Mail,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 24.dp)
-                            .size(18.dp),
-                    )
-                }
-            }
+                icon = Icons.Default.Mail,
+            )
             Spacer(modifier = Modifier.height(4.dp))
         }
     }

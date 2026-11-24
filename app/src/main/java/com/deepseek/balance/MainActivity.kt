@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -41,7 +42,9 @@ import com.deepseek.balance.network.UsageClient
 import com.deepseek.balance.ui.AppBackground
 import com.deepseek.balance.ui.BottomTabs
 import com.deepseek.balance.ui.NavGlassTuning
+import com.deepseek.balance.ui.LiquidGlassTuning
 import com.deepseek.balance.ui.LocalLiquidCardBackdrop
+import com.deepseek.balance.ui.LocalLiquidGlassTuning
 import com.deepseek.balance.ui.MainScreen
 import com.deepseek.balance.ui.SettingsScreen
 import com.deepseek.balance.ui.WebLoginScreen
@@ -340,28 +343,43 @@ private fun BalanceAppContent(
         mutableStateOf(prefs.getString("background_image", "") ?: "")
     }
 
-    // 导航栏液态玻璃调参（设置页滑块实时调节，prefs 持久化）
+    var liquidGlassTuning by remember {
+        val defaults = LiquidGlassTuning()
+        mutableStateOf(
+            LiquidGlassTuning(
+                blurDp = prefs.getGlassFloat("liquid_glass_blur", defaults.blurDp, 0f, 8f),
+                refractionHeightDp = prefs.getGlassFloat("liquid_glass_refraction_h", defaults.refractionHeightDp, 0f, 24f),
+                refractionAmountDp = prefs.getGlassFloat("liquid_glass_refraction_a", defaults.refractionAmountDp, 0f, 36f),
+                surfaceAlpha = prefs.getGlassFloat("liquid_glass_alpha", defaults.surfaceAlpha, 0f, 0.24f),
+                chromaticAberration = prefs.getBoolean("liquid_glass_chroma", defaults.chromaticAberration),
+                cornerRadiusDp = prefs.getGlassFloat("liquid_glass_corner_radius", defaults.cornerRadiusDp, 0f, 48f),
+                depthEffect = prefs.getBoolean("liquid_glass_depth", defaults.depthEffect),
+                vibrancy = prefs.getBoolean("liquid_glass_vibrancy", defaults.vibrancy),
+            )
+        )
+    }
     var navGlassTuning by remember {
         mutableStateOf(
             NavGlassTuning(
                 barHeightDp = prefs.getFloat("nav_glass_bar_height", 64f),
-                refractionHeightDp = prefs.getFloat("nav_glass_refraction_h", 0f),
-                refractionAmountDp = prefs.getFloat("nav_glass_refraction_a", 0f),
-                blurDp = prefs.getFloat("nav_glass_blur", 12f),
-                containerAlpha = prefs.getFloat("nav_glass_alpha", 0f),
-                capsuleBlurDp = prefs.getFloat("nav_glass_capsule_blur", 0f),
                 pressStretchVDp = prefs.getFloat("nav_glass_press_stretch_v", 12f),
                 pressStretchHDp = prefs.getFloat("nav_glass_press_stretch_h", 6f),
-                edgeBlurDp = prefs.getFloat("nav_glass_edge_blur", 0f),
-                chromaticAberration = prefs.getBoolean("nav_glass_chroma", true),
                 detentStrength = prefs.getFloat("nav_glass_detent", 0f),
                 detentQuantize = prefs.getFloat("nav_glass_detent_quant", 1f),
                 detentHaptics = prefs.getBoolean("nav_glass_detent_haptic", true),
             )
         )
     }
-    // 调参持久化节流：拖动滑块每帧回调，磁盘写入最多每 500ms 一次（内存预览不受影响）
-    var lastNavGlassPersist by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(liquidGlassTuning) {
+        delay(500)
+        persistLiquidGlassTuning(prefs, liquidGlassTuning)
+    }
+    LaunchedEffect(navGlassTuning) {
+        if (!navGlassTuning.interactiveDegrade) {
+            delay(500)
+            persistNavGlassTuning(prefs, navGlassTuning)
+        }
+    }
 
     // 数据
     var isLoading by remember { mutableStateOf(false) }
@@ -584,7 +602,10 @@ private fun BalanceAppContent(
             modifier = Modifier.layerBackdrop(ambientBackdrop),
         )
 
-        CompositionLocalProvider(LocalLiquidCardBackdrop provides ambientBackdrop) {
+        CompositionLocalProvider(
+            LocalLiquidCardBackdrop provides ambientBackdrop,
+            LocalLiquidGlassTuning provides liquidGlassTuning,
+        ) {
         // ---- 主界面 + 设置页（滑动切换） ----
         // 两屏不录制进任何 backdrop（官方架构：玻璃只折射壁纸层）。
         // 底栏 BottomTabs 改为消费 ambientBackdrop，与卡片同源。
@@ -670,19 +691,14 @@ private fun BalanceAppContent(
                         backgroundImage = it
                         prefs.edit().putString("background_image", it).apply()
                     },
-                    navGlassTuning = navGlassTuning,
-                    onNavGlassTuningChange = { tuning ->
-                        // 内存立即更新（实时预览）；磁盘写入节流——拖动滑块每帧都在回调，
-                        // 每帧 apply() 会产生大量异步 IO 排队，是调参掉帧的次要来源。
-                        // 拖动结束后 500ms 内的改动会随最后一次节流写入落盘，最多丢半秒调整值
-                        navGlassTuning = tuning
-                        val now = System.currentTimeMillis()
-                        // 持久化时剔除 interactiveDegrade（拖动降级是临时标记，不应写盘）
-                        if (now - lastNavGlassPersist >= 500 && !tuning.interactiveDegrade) {
-                            lastNavGlassPersist = now
-                            persistNavGlassTuning(prefs, tuning)
-                        }
+                    liquidGlassTuning = liquidGlassTuning,
+                    onLiquidGlassTuningChange = { liquidGlassTuning = it },
+                    onLiquidGlassTuningCommit = { tuning ->
+                        liquidGlassTuning = tuning
+                        persistLiquidGlassTuning(prefs, tuning)
                     },
+                    navGlassTuning = navGlassTuning,
+                    onNavGlassTuningChange = { navGlassTuning = it },
                 )
             }
         }
@@ -690,18 +706,20 @@ private fun BalanceAppContent(
 
         // ---- 悬浮底部标签栏（首页/设置）：两屏从其下方滑过 ----
         // 对齐官方：底栏玻璃折射壁纸层（ambientBackdrop），不折射滚动内容
-        BottomTabs(
-            backdrop = ambientBackdrop,
-            isSettings = showSettings,
-            onTabSelected = { showSettings = it },
-            tuning = navGlassTuning,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding() // edge-to-edge：避开透明导航栏/手势条
-                .padding(bottom = 16.dp)
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth(),
-        )
+        CompositionLocalProvider(LocalLiquidGlassTuning provides liquidGlassTuning) {
+            BottomTabs(
+                backdrop = ambientBackdrop,
+                isSettings = showSettings,
+                onTabSelected = { showSettings = it },
+                tuning = navGlassTuning,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth(),
+            )
+        }
 
         // ---- 网页一键登录（WebView 全屏覆盖层） ----
         if (showWebLogin) {
@@ -749,24 +767,41 @@ private fun placeholderUsage(): UsageData {
     )
 }
 
-/** 将导航栏玻璃调参持久化到 SharedPreferences（拖动时按 500ms 节流调用） */
+private fun android.content.SharedPreferences.getGlassFloat(
+    key: String,
+    defaultValue: Float,
+    minValue: Float,
+    maxValue: Float,
+): Float {
+    val value = getFloat(key, defaultValue)
+    return if (value.isFinite()) value.coerceIn(minValue, maxValue) else defaultValue
+}
+
+private fun persistLiquidGlassTuning(
+    prefs: android.content.SharedPreferences,
+    tuning: LiquidGlassTuning,
+) {
+    prefs.edit()
+        .putFloat("liquid_glass_blur", tuning.blurDp)
+        .putFloat("liquid_glass_refraction_h", tuning.refractionHeightDp)
+        .putFloat("liquid_glass_refraction_a", tuning.refractionAmountDp)
+        .putFloat("liquid_glass_alpha", tuning.surfaceAlpha)
+        .putBoolean("liquid_glass_chroma", tuning.chromaticAberration)
+        .putFloat("liquid_glass_corner_radius", tuning.cornerRadiusDp)
+        .putBoolean("liquid_glass_depth", tuning.depthEffect)
+        .putBoolean("liquid_glass_vibrancy", tuning.vibrancy)
+        .apply()
+}
+
 private fun persistNavGlassTuning(
     prefs: android.content.SharedPreferences,
     tuning: NavGlassTuning,
 ) {
-    // interactiveDegrade 是拖动期临时降级标记，不持久化（调用方已过滤，双重保险）
     val tuning = tuning.copy(interactiveDegrade = false)
     prefs.edit()
         .putFloat("nav_glass_bar_height", tuning.barHeightDp)
-        .putFloat("nav_glass_refraction_h", tuning.refractionHeightDp)
-        .putFloat("nav_glass_refraction_a", tuning.refractionAmountDp)
-        .putFloat("nav_glass_blur", tuning.blurDp)
-        .putFloat("nav_glass_alpha", tuning.containerAlpha)
-        .putFloat("nav_glass_capsule_blur", tuning.capsuleBlurDp)
         .putFloat("nav_glass_press_stretch_v", tuning.pressStretchVDp)
         .putFloat("nav_glass_press_stretch_h", tuning.pressStretchHDp)
-        .putFloat("nav_glass_edge_blur", tuning.edgeBlurDp)
-        .putBoolean("nav_glass_chroma", tuning.chromaticAberration)
         .putFloat("nav_glass_detent", tuning.detentStrength)
         .putFloat("nav_glass_detent_quant", tuning.detentQuantize)
         .putBoolean("nav_glass_detent_haptic", tuning.detentHaptics)

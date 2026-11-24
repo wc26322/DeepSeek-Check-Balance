@@ -131,10 +131,15 @@ fun MainScreen(
                 .padding(innerPadding),
             indicator = {
                 // Expressive 官方 LoadingIndicator：下拉时出现箭头 + 容器，松手后转圈，自带位移/缩放动画
+                // 默认顶对齐会落在悬浮玻璃顶栏（8dp 间距 + 56dp 栏高）覆盖区内，
+                // 下拉时指示器图像被「余额」栏遮挡；整体下移 72dp（栏底 64dp + 8dp 间隙）让其完整露出，
+                // 同时把悬停待加载的位置一并下移到栏下方
                 PullToRefreshDefaults.LoadingIndicator(
                     state = pullState,
                     isRefreshing = isLoading,
-                    modifier = Modifier.align(Alignment.TopCenter),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 72.dp),
                 )
             },
         ) {

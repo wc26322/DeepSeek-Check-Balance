@@ -6,13 +6,11 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
@@ -28,7 +26,7 @@ val LocalLiquidCardBackdrop = staticCompositionLocalOf<Backdrop> {
 // ============================================================================
 // 2026-09-26 恢复官方 AndroidLiquidGlass 架构（用户要求参照官方项目）：
 // 每张卡片自己一层 drawBackdrop —— 官方 LazyScrollContainerContent.kt 逐字配方：
-//   drawBackdrop(backdrop, RoundedRectangle(32dp), effects = { vibrancy(); lens(16dp, 32dp) })
+//   drawBackdrop(backdrop, RoundedRectangle(32dp), effects = { vibrancy(); blur(3dp); lens(20dp, 36dp) })
 // 官方 demo 用这个配方在 LazyColumn 里滚动 100 张玻璃卡，流畅度经过官方验证。
 // （v1.4.7 曾因 RT 帧耗时改为"整页 GlassPage 单层玻璃板 + 卡片轻量面片"，
 //   代价是卡片失去各自的折射细节；现按用户要求回归官方逐卡玻璃。
@@ -43,44 +41,55 @@ val LocalLiquidCardBackdrop = staticCompositionLocalOf<Backdrop> {
 @Composable
 internal fun LiquidCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 32f.dp,
-    surfaceColor: Color = Color.Unspecified,
-    surfaceOverlay: (DrawScope.() -> Unit)? = null,
+    cornerRadius: Dp? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val tuning = LocalLiquidGlassTuning.current
+    val surfaceColor = liquidGlassSurfaceColor()
     Column(
         modifier.drawBackdrop(
             backdrop = LocalLiquidCardBackdrop.current,
-            shape = { RoundedRectangle(cornerRadius) },
+            shape = { RoundedRectangle(cornerRadius ?: tuning.cornerRadiusDp.dp) },
             effects = {
-                vibrancy()
-                lens(16f.dp.toPx(), 32f.dp.toPx())
+                if (tuning.vibrancy) vibrancy()
+                blur(tuning.blurDp.dp.toPx())
+                lens(
+                    tuning.refractionHeightDp.dp.toPx(),
+                    tuning.refractionAmountDp.dp.toPx(),
+                    chromaticAberration = tuning.chromaticAberration,
+                    depthEffect = tuning.depthEffect,
+                )
             },
-            onDrawSurface = {
-                if (surfaceColor.isSpecified) {
-                    drawRect(surfaceColor)
-                }
-                surfaceOverlay?.invoke(this)
-            }
+            highlight = { liquidGlassHighlight() },
+            onDrawSurface = { drawRect(surfaceColor) },
         ),
         content = content
     )
 }
 
-/** 整页玻璃板：一个 drawBackdrop 层提供整块玻璃面。现仅用于调参弹窗（弹窗本身就是"一块玻璃"） */
 @Composable
 internal fun GlassPage(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 0f.dp,
 ) {
+    val tuning = LocalLiquidGlassTuning.current
+    val surfaceColor = liquidGlassSurfaceColor()
     Box(
         modifier.drawBackdrop(
             backdrop = LocalLiquidCardBackdrop.current,
             shape = { RoundedRectangle(cornerRadius) },
             effects = {
-                vibrancy()
-                lens(8f.dp.toPx(), 16f.dp.toPx())
+                if (tuning.vibrancy) vibrancy()
+                blur(tuning.blurDp.dp.toPx())
+                lens(
+                    tuning.refractionHeightDp.dp.toPx(),
+                    tuning.refractionAmountDp.dp.toPx(),
+                    chromaticAberration = tuning.chromaticAberration,
+                    depthEffect = tuning.depthEffect,
+                )
             },
+            highlight = { liquidGlassHighlight() },
+            onDrawSurface = { drawRect(surfaceColor) },
         )
     )
 }

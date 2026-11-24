@@ -11,8 +11,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -33,11 +32,6 @@ class DampedDragAnimation(
     // 本 app 自定义交互：把拖拽点的局部坐标传出去，供「胶囊中心跟随手指位置」用
     val onDrag: DampedDragAnimation.(position: Offset, dragAmount: Offset) -> Unit,
 ) {
-
-    // 按压看门狗超时：press() 后若 N 秒内没有 release()，强制归位（兜底，见 press() 注释）
-    private companion object {
-        const val PRESS_WATCHDOG_MS = 4000L
-    }
 
     private val valueAnimationSpec =
         spring(1f, 1000f, visibilityThreshold)
@@ -65,12 +59,6 @@ class DampedDragAnimation(
 
     private val velocityTracker = VelocityTracker()
 
-    // 按压看门狗：press() 时启动，释放时取消防。
-    // 若 onDragEnd/onDragCancel 因输入竞态丢失（冷启动首帧、事件被 clickable 抢占等），
-    // 按压态（pressProgress/scale 停在按压值）会永久卡死 → 胶囊被拉伸且永不恢复。
-    // 看门狗在 N 秒后强制 release() 兜底归位 —— 任何场景下最多 N 秒恢复。
-    private var pressWatchdog: Job? = null
-
     val value: Float get() = valueAnimation.value
     val progress: Float get() = (value - valueRange.start) / (valueRange.endInclusive - valueRange.start)
     val targetValue: Float get() = valueAnimation.targetValue
@@ -80,21 +68,25 @@ class DampedDragAnimation(
     val velocity: Float get() = velocityAnimation.value
 
     val modifier: Modifier = Modifier.pointerInput(Unit) {
-        inspectDragGestures(
-            onDragStart = { down ->
-                onDragStarted(down.position)
-                press()
-            },
-            onDragEnd = {
-                onDragStopped()
-                release()
-            },
-            onDragCancel = {
-                onDragStopped()
-                release()
+        try {
+            inspectDragGestures(
+                onDragStart = { down ->
+                    onDragStarted(down.position)
+                    press()
+                },
+                onDragEnd = {
+                    onDragStopped()
+                    release()
+                },
+                onDragCancel = {
+                    onDragStopped()
+                    release()
+                }
+            ) { change, dragAmount ->
+                onDrag(change.position, dragAmount)
             }
-        ) { change, dragAmount ->
-            onDrag(change.position, dragAmount)
+        } finally {
+            release()
         }
     }
 
@@ -105,17 +97,9 @@ class DampedDragAnimation(
             launch { scaleXAnimation.animateTo(pressedScale, scaleXAnimationSpec) }
             launch { scaleYAnimation.animateTo(pressedScale, scaleYAnimationSpec) }
         }
-        // 看门狗：正常情况 release() 会先取消它；只有 release 丢失/被取消时才兜底
-        pressWatchdog?.cancel()
-        pressWatchdog = animationScope.launch {
-            delay(PRESS_WATCHDOG_MS)
-            release()
-        }
     }
 
     fun release() {
-        pressWatchdog?.cancel()
-        pressWatchdog = null
         animationScope.launch {
             awaitFrame()
             if (value != targetValue) {

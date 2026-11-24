@@ -172,7 +172,6 @@ internal fun UsageSection(
 private fun NoTokenHint(onSettingsClick: () -> Unit) {
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -208,7 +207,6 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
 private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -246,7 +244,6 @@ private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
 private fun UsageOverviewCard(usage: UsageData) {
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -328,7 +325,6 @@ private fun UsageListCard(
 ) {
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -416,7 +412,7 @@ private fun TokensRow(value: String) {
 @Composable
 private fun StatChip(label: String, value: String) {
     Surface(
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f),
         shape = MaterialTheme.shapes.small,
     ) {
         Row(
@@ -555,7 +551,6 @@ private fun DailyUsageCard(
 
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -1263,8 +1258,8 @@ private fun formatAxis(v: Long): String = when {
 private fun DayDetail(day: DailyUsage, modifier: Modifier = Modifier) {
     LiquidCard(
         modifier = modifier.fillMaxWidth(),
-        cornerRadius = 16.dp, // 嵌套明细面板：小圆角保持与外层玻璃卡(32dp)的层级
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
+
+
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(

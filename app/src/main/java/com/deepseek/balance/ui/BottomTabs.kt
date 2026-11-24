@@ -2,6 +2,7 @@ package com.deepseek.balance.ui
 
 import android.os.Build
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
@@ -106,41 +107,13 @@ import kotlin.math.sin
 internal val LocalLiquidBottomTabScale =
     staticCompositionLocalOf { { 1f } }
 
-/**
- * 导航栏液态玻璃可调参数：由设置页「导航栏玻璃效果」卡的滑块实时调节，SharedPreferences 持久化。
- */
 data class NavGlassTuning(
-    /** 导航栏背景板（整条玻璃材质层）高度（dp）：胶囊/图标/手势层保持官方 56dp 不变，背景板独立升降。默认 64 */
     val barHeightDp: Float = 64f,
-    /** 胶囊边缘扭曲带宽（静止基值，dp）。按压时叠加官方增量 +10dp */
-    val refractionHeightDp: Float = 0f,
-    /** 胶囊边缘扭曲强度（静止基值，dp）。按压时叠加官方增量 +14dp */
-    val refractionAmountDp: Float = 0f,
-    /** 整条玻璃栏的背景模糊半径（dp），默认 12 */
-    val blurDp: Float = 12f,
-    /** 玻璃底色不透明度（0=全透，1=不透明），默认 0 */
-    val containerAlpha: Float = 0f,
-    /** 胶囊磨砂度（dp）：雾化胶囊内透出的内容，拉高可消除"镜面"感 */
-    val capsuleBlurDp: Float = 0f,
-    /** 按住时胶囊上下边框外移量（dp）：在官方果冻按压缩放之上额外纵向拉伸，负值=向内收缩，0=关闭。默认 12 */
     val pressStretchVDp: Float = 12f,
-    /** 按住时胶囊左右边框外移量（dp）：在官方果冻按压缩放之上额外横向拉伸，负值=向内收缩，0=官方原版。默认 6 */
     val pressStretchHDp: Float = 6f,
-    /** 边缘模糊（dp）：只把胶囊边缘一圈磨砂（环宽=模糊半径），0=关闭；中心折射不受影响 */
-    val edgeBlurDp: Float = 0f,
-    /** 胶囊边缘彩色色散（彩虹边），默认开启 */
-    val chromaticAberration: Boolean = true,
-    /**
-     * 切换粘滞强度（0=完全跟手，0.9=强磁吸）：拖动时靠近 tab 位置移动变慢（像被吸住），
-     * 越过中点后加速"弹"过去 → 物理档位感。上限 0.9（=1 时档位处导数为 0，会彻底拖不动）。默认 0
-     */
     val detentStrength: Float = 0f,
-    /** 段落量化（0=连续跟手，1=纯档位跳变）：拖动时按 tab 位置逐格跳动。默认 1 */
     val detentQuantize: Float = 1f,
-    /** 段落震动：拖动跨越档位的瞬间来一记轻震动 */
     val detentHaptics: Boolean = true,
-    /** 拖动调参降级（不持久化）：设置弹窗拖滑块时为 true，跳过底栏 blur 和边缘模糊环，
-     *  松手后恢复 —— blur/edgeBlur 是 RenderEffect 里最贵的，砍掉才能上 120 帧 */
     val interactiveDegrade: Boolean = false,
 )
 
@@ -199,14 +172,14 @@ internal fun BottomTabs(
         else Color(0xFF0091FF)
     val contentColor =
         if (isLightTheme) Color.Black else Color.White
-    val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(alpha = tuning.containerAlpha)
-        else Color(0xFF121212).copy(alpha = tuning.containerAlpha)
+    val glassTuning = LocalLiquidGlassTuning.current
+    val glassSurfaceColor = liquidGlassSurfaceColor()
+    val tabsBackdrop = rememberLayerBackdrop()
 
     // 层②录制层：只录"纯玻璃底板"（磨砂背景+底色），不含任何图标——
     // 胶囊折射 combined(壁纸, 本层) 后与整条栏材质一致（官方观感），
     // 且图标不进折射内容，边缘扭曲永远卷不出"图案倒影"。
-    val tabsBackdrop = rememberLayerBackdrop()
+
     BoxWithConstraints(
         modifier,
         contentAlignment = Alignment.CenterStart
@@ -347,6 +320,7 @@ internal fun BottomTabs(
             )
         }
 
+
         Row(
             Modifier
                 .graphicsLayer {
@@ -362,10 +336,16 @@ internal fun BottomTabs(
                     backdrop = backdrop,
                     shape = { Capsule() },
                     effects = {
-                        vibrancy()
-                        if (!tuning.interactiveDegrade) blur(tuning.blurDp.dp.toPx())
-                        lens(24f.dp.toPx(), 24f.dp.toPx())
+                        if (glassTuning.vibrancy) vibrancy()
+                        if (!tuning.interactiveDegrade) blur(glassTuning.blurDp.dp.toPx())
+                        lens(
+                            glassTuning.refractionHeightDp.dp.toPx(),
+                            glassTuning.refractionAmountDp.dp.toPx(),
+                            chromaticAberration = glassTuning.chromaticAberration,
+                            depthEffect = glassTuning.depthEffect,
+                        )
                     },
+                    highlight = { liquidGlassHighlight() },
                     layerBlock = {
                         // 官方原版：按压时整栏等比放大 16dp（X/Y 同值）。基准必须钉左上角
                         // （库逆变换 inverseTransformAtTopLeft 只认 Offset.Zero），中心放大的
@@ -376,7 +356,7 @@ internal fun BottomTabs(
                         scaleX = scale
                         scaleY = scale
                     },
-                    onDrawSurface = { drawRect(containerColor) }
+                    onDrawSurface = { drawRect(glassSurfaceColor) }
                 )
                 .then(interactiveHighlight.modifier)
                 .height(tuning.barHeightDp.dp)
@@ -395,9 +375,7 @@ internal fun BottomTabs(
             }
         )
 
-        // 层②（官方原版结构）：隐藏的强调色 tab 副本行——alpha(0) 自身不可见，
-        // 录制进 tabsBackdrop 仅供胶囊折射；选中 tab 的图标经折射在胶囊内呈现强调色，
-        // 整行 colorFilter 染色为 accentColor；按压时图标按 1→1.2 弹跳（LocalLiquidBottomTabScale）。
+
         CompositionLocalProvider(
             LocalLiquidBottomTabScale provides {
                 lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
@@ -415,19 +393,20 @@ internal fun BottomTabs(
                         backdrop = backdrop,
                         shape = { Capsule() },
                         effects = {
-                            val progress = dampedDragAnimation.pressProgress
-                            vibrancy()
-                            if (!tuning.interactiveDegrade) blur(tuning.blurDp.dp.toPx())
+                            val progress = safeProgress(dampedDragAnimation.pressProgress)
+                            if (glassTuning.vibrancy) vibrancy()
+                            if (!tuning.interactiveDegrade) blur(glassTuning.blurDp.dp.toPx())
                             lens(
-                                24f.dp.toPx() * progress,
-                                24f.dp.toPx() * progress
+                                glassTuning.refractionHeightDp.dp.toPx() * progress,
+                                glassTuning.refractionAmountDp.dp.toPx() * progress,
+                                depthEffect = glassTuning.depthEffect,
                             )
                         },
                         highlight = {
-                            val progress = dampedDragAnimation.pressProgress
+                            val progress = safeProgress(dampedDragAnimation.pressProgress)
                             Highlight.Default.copy(alpha = progress)
                         },
-                        onDrawSurface = { drawRect(containerColor) }
+                        onDrawSurface = { drawRect(glassSurfaceColor) },
                     )
                     .then(interactiveHighlight.modifier)
                     .height(56f.dp)
@@ -444,7 +423,7 @@ internal fun BottomTabs(
                         Icon(Icons.Filled.Settings, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
                         Text("设置", fontSize = 12f.sp, color = contentColor)
                     }
-                }
+                },
             )
         }
 
@@ -487,14 +466,10 @@ internal fun BottomTabs(
                     shape = { Capsule() },
                     effects = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        // 磨砂度 > 0 时雾化胶囊内透出的内容（消除"镜面反射"感），
-                        // 边缘扭曲照常作用于雾化后的内容
-                        if (tuning.capsuleBlurDp > 0f) blur(tuning.capsuleBlurDp.dp.toPx())
-                        // 扭曲参数来自设置页滑块：静止用基值，按压时叠加官方原版增量（+10dp/+14dp）
                         lens(
-                            (tuning.refractionHeightDp + 10f * progress).dp.toPx(),
-                            (tuning.refractionAmountDp + 14f * progress).dp.toPx(),
-                            chromaticAberration = tuning.chromaticAberration
+                            10f.dp.toPx() * progress,
+                            14f.dp.toPx() * progress,
+                            chromaticAberration = glassTuning.chromaticAberration,
                         )
                     },
                     highlight = {
@@ -534,11 +509,7 @@ internal fun BottomTabs(
                     },
                     onDrawSurface = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        drawRect(
-                            if (isLightTheme) Color.Black.copy(0.1f)
-                            else Color.White.copy(0.1f),
-                            alpha = 1f - progress
-                        )
+                        drawRect(glassSurfaceColor, alpha = 1f - progress)
                         drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     }
                 )
@@ -546,74 +517,7 @@ internal fun BottomTabs(
                 .fillMaxWidth(1f / tabsCount)
         )
 
-        // 边缘模糊环：把 combined(壁纸, 层②) 模糊后只画在胶囊边缘一圈（环宽 = 模糊值，滑块可调）。
-        // 实现原理：onDrawBackdrop 在录制期用「外胶囊 − 内缩胶囊」的 EvenOdd 环形路径裁剪，
-        // blur RenderEffect 在合成期对环内像素做高斯模糊（环缘自然羽化，外缘被胶囊形状收口）。
-        // 位移/缩放补偿与主胶囊逐字一致 → 拖拽/按压/速度挤压全程贴合，折射内容零错位。
-        // 无手势修饰符 → 触摸穿透到下方；0dp 时不组合此节点（否则空 effects 会画出清晰环）。
-        // 注意：本节点唯一效果是 blur() 且 edgeTreatment 走默认 TileMode.Clamp —— 按库实现
-        // （Blur.kt）此时【不会】设置出血边距 padding，故层尺寸 = 节点尺寸、画布无平移，
-        // onDrawBackdrop 的坐标原点即节点左上角、size 即节点实际尺寸（此前误减 2×pad 导致
-        // 外轮廓收缩、磨砂环整体向左上偏移且右下缺边，已修正）。
-        // 拖动调参降级：跳过 blur 的渲染，降 RenderEffect 负载（松手自动恢复）
-        if (tuning.edgeBlurDp > 0f && !tuning.interactiveDegrade) {
-            Box(
-                Modifier
-                    .padding(horizontal = 4f.dp)
-                    .graphicsLayer {
-                        val baseX = if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
-                            else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
-                        val sx = safeScale(dampedDragAnimation.scaleX)
-                        val sy = safeScale(dampedDragAnimation.scaleY)
-                        val v = safeVelocity(dampedDragAnimation.velocity)
-                        val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        val totalSx = sx / (1f - v * 0.75f) *
-                            lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
-                        val totalSy = sy * (1f - v * 0.25f) *
-                            lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
-                        translationX = baseX - (totalSx - 1f) * size.width / 2f
-                        translationY = -(totalSy - 1f) * size.height / 2f
-                    }
-                    .drawBackdrop(
-                        backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
-                        shape = { Capsule() },
-                        effects = { blur(tuning.edgeBlurDp.dp.toPx()) },
-                        layerBlock = {
-                            transformOrigin = TransformOrigin(0f, 0f)
-                            val sx = safeScale(dampedDragAnimation.scaleX)
-                            val sy = safeScale(dampedDragAnimation.scaleY)
-                            val velocity = safeVelocity(dampedDragAnimation.velocity)
-                            val progress = safeProgress(dampedDragAnimation.pressProgress)
-                            scaleX = sx / (1f - velocity * 0.75f)
-                            scaleY = sy * (1f - velocity * 0.25f)
-                            scaleX *= lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
-                            scaleY *= lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
-                        },
-                        highlight = null,
-                        shadow = null,
-                        innerShadow = null,
-                        onDrawSurface = null,
-                        onDrawBackdrop = { drawBackdrop ->
-                            // 无出血边（见上方注释）：DrawScope 原点 = 节点左上角，size = 节点实际尺寸。
-                            // 外轮廓直接取节点尺寸（与胶囊形状同坐标贴边），内缩 band 形成均匀环形。
-                            val pad = tuning.edgeBlurDp.dp.toPx()
-                            val w = size.width
-                            val h = size.height
-                            val band = pad.coerceAtMost(minOf(w, h) / 2f - 1f).coerceAtLeast(0f)
-                            if (w > 0f && h > 0f && band > 0f) {
-                                val ring = Path().apply {
-                                    fillType = PathFillType.EvenOdd
-                                    addPath(capsulePath(w, h, Offset.Zero))
-                                    addPath(capsulePath(w - 2f * band, h - 2f * band, Offset(band, band)))
-                                }
-                                clipPath(ring) { drawBackdrop() }
-                            }
-                        }
-                    )
-                    .height(56f.dp)
-                    .fillMaxWidth(1f / tabsCount)
-            )
-        }
+
     }
 }
 

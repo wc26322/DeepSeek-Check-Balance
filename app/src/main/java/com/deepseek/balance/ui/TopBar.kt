@@ -21,10 +21,8 @@ internal fun TopBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
-    // API<31 无渲染效果时加深蒙层保证可读；API>=31 用轻蒙层模拟 iOS 毛玻璃的材质感
-    val scrimColor = MaterialTheme.colorScheme.background.copy(
-        alpha = if (isRenderEffectSupported()) 0.35f else 0.86f,
-    )
+    val tuning = LocalLiquidGlassTuning.current
+    val surfaceColor = liquidGlassSurfaceColor()
 
     Row(
         modifier = modifier
@@ -33,11 +31,17 @@ internal fun TopBar(
                 backdrop = backdrop,
                 shape = { Capsule() },
                 effects = {
-                    vibrancy()
-                    blur(24f.dp.toPx())
-                    lens(12f.dp.toPx(), 24f.dp.toPx())
+                    if (tuning.vibrancy) vibrancy()
+                    blur(tuning.blurDp.dp.toPx())
+                    lens(
+                        tuning.refractionHeightDp.dp.toPx(),
+                        tuning.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = tuning.chromaticAberration,
+                        depthEffect = tuning.depthEffect,
+                    )
                 },
-                onDrawSurface = { drawRect(scrimColor) },
+                highlight = { liquidGlassHighlight() },
+                onDrawSurface = { drawRect(surfaceColor) },
             )
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,

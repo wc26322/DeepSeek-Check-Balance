@@ -34,23 +34,12 @@ internal fun BalanceCard(
     val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
 
     // 玻璃底 + 品牌渐变蒙层（官方 onDrawSurface 正规用法）：容器为液态玻璃卡（LiquidCard），
-    // 品牌渐变作为半透明蒙层画在玻璃表面——alpha 保持 0.78/0.84 让光斑折射能透出来
+    // 品牌渐变作为半透明蒙层画在玻璃表面——alpha 保持 0.20/0.28 让光斑折射能透出来
     val primary = MaterialTheme.colorScheme.primary
-    val gradientBrush = Brush.verticalGradient(
-        colors = listOf(
-            primary.copy(alpha = 0.78f),
-            primary.copy(
-                red = (primary.red * 0.82f).coerceIn(0f, 1f),
-                green = (primary.green * 0.82f).coerceIn(0f, 1f),
-                blue = (primary.blue * 0.82f).coerceIn(0f, 1f),
-                alpha = 0.84f,
-            ),
-        ),
-    )
+    val contentColor = MaterialTheme.colorScheme.onSurface
 
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceOverlay = { drawRect(brush = gradientBrush) },
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
                 Row(
@@ -61,14 +50,14 @@ internal fun BalanceCard(
                     Text(
                         text = "账户总余额",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = contentColor.copy(alpha = 0.7f),
                         letterSpacing = 1.sp,
                     )
                     StatusChip(
                         text = statusText,
                         color = statusColor,
-                        containerColor = Color.White.copy(alpha = 0.2f),
-                        labelColor = Color.White,
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
+                        labelColor = contentColor,
                     )
                 }
 
@@ -83,7 +72,7 @@ internal fun BalanceCard(
                             letterSpacing = (-1).sp,
                             fontFeatureSettings = "tnum",
                         ),
-                        color = Color.White,
+                        color = contentColor,
                     )
                     AnimatedAmount(
                         target = totalAmount,
@@ -93,7 +82,7 @@ internal fun BalanceCard(
                             letterSpacing = (-1).sp,
                             fontFeatureSettings = "tnum",
                         ),
-                        color = Color.White,
+                        color = contentColor,
                     )
                 }
 
@@ -108,7 +97,7 @@ internal fun BalanceCard(
                             symbol = symbol,
                             amountTarget = grantedAmount,
                             restartKey = refreshCount,
-                            color = Color.White.copy(alpha = 0.85f),
+                            color = contentColor.copy(alpha = 0.85f),
                         )
                         // 总消费：来自用量接口（累计消费），复用 BalanceLine 保证与赠金完全对齐；
                         // 未配置网页令牌时显示 --（无动画）
@@ -118,14 +107,14 @@ internal fun BalanceCard(
                                 symbol = symbol,
                                 amountTarget = totalCostCny,
                                 restartKey = refreshCount,
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = contentColor.copy(alpha = 0.85f),
                             )
                         } else {
                             Column {
                                 Text(
                                     text = "总消费",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.7f),
+                                    color = contentColor.copy(alpha = 0.7f),
                                 )
                                 Text(
                                     text = "--",
@@ -133,7 +122,7 @@ internal fun BalanceCard(
                                         fontWeight = FontWeight.Medium,
                                         fontFeatureSettings = "tnum",
                                     ),
-                                    color = Color.White.copy(alpha = 0.85f),
+                                    color = contentColor.copy(alpha = 0.85f),
                                 )
                             }
                         }

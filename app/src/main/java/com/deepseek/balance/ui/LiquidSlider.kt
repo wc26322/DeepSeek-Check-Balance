@@ -60,6 +60,7 @@ fun LiquidSlider(
     backdrop: Backdrop = LocalLiquidCardBackdrop.current,
     visibilityThreshold: Float = 0.001f,
     onDraggingChanged: (Boolean) -> Unit = {},
+    onValueChangeFinished: (Float) -> Unit = {},
 ) {
     val isLightTheme = !isSystemInDarkTheme()
     val accentColor =
@@ -85,6 +86,7 @@ fun LiquidSlider(
         val currentValue by rememberUpdatedState(value)
         val currentOnValueChange by rememberUpdatedState(onValueChange)
         val currentOnDraggingChanged by rememberUpdatedState(onDraggingChanged)
+        val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
         val dampedDragAnimation = remember(animationScope) {
             DampedDragAnimation(
                 animationScope = animationScope,
@@ -100,8 +102,8 @@ fun LiquidSlider(
                 onDragStopped = {
                     currentOnDraggingChanged(false)
                     if (didDrag) {
-                        // 拖动结束一次性提交最终位置（官方写法）
                         currentOnValueChange(targetValue)
+                        currentOnValueChangeFinished(targetValue)
                     }
                 },
                 onDrag = { _, dragAmount ->
@@ -140,6 +142,7 @@ fun LiquidSlider(
                                     .coerceIn(valueRange)
                             dampedDragAnimation.animateToValue(targetValue)
                             currentOnValueChange(targetValue)
+                            currentOnValueChangeFinished(targetValue)
                         }
                     }
                     .height(6f.dp)

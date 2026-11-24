@@ -54,12 +54,9 @@ internal fun AmbientBackground(modifier: Modifier = Modifier) {
 
                 val w = size.width
                 val h = size.height
-                // 三个光斑全部避开顶栏/底栏所在的高度带（上下各 ~12%）：
-                // 色散会把光斑渐变拆成彩虹边，玻璃（尤其胶囊）停在纯背景上时，
-                // 下方必须没有渐变才不会显彩虹；颜色集中在卡片经过的中段
-                blob(Offset(w * 0.12f, h * 0.30f), w * 0.45f, primary, 0.45f * baseAlpha)
-                blob(Offset(w * 0.95f, h * 0.52f), w * 0.45f, tertiary, 0.38f * baseAlpha)
-                blob(Offset(w * 0.25f, h * 0.72f), w * 0.38f, secondary, 0.32f * baseAlpha)
+                blob(Offset(w * 0.12f, h * 0.12f), w * 0.50f, primary, 0.45f * baseAlpha)
+                blob(Offset(w * 0.95f, h * 0.50f), w * 0.48f, tertiary, 0.38f * baseAlpha)
+                blob(Offset(w * 0.25f, h * 0.88f), w * 0.50f, secondary, 0.32f * baseAlpha)
             }
     )
 }

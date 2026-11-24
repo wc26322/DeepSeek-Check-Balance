@@ -18,7 +18,7 @@ internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
     // 与「网页令牌」提示（NoTokenHint）同款液态玻璃容器：透出背景折射
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
-        surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.3f),
+
     ) {
         Column(
             modifier = Modifier.padding(20.dp),

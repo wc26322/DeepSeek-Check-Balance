@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#E8F0FE</color>
+    <color name="ic_launcher_background">#F5F5F7</color>
 
     <!-- 小组件文字颜色：由桌面(Launcher)在渲染时按 uiMode 解析，
          values-night 提供深色变体 —— 与 widget_bg 的 drawable-night 同机制，

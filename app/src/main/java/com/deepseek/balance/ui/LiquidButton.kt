@@ -48,11 +48,11 @@ fun LiquidButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isInteractive: Boolean = true,
-    tint: Color = Color.Unspecified,
-    surfaceColor: Color = Color.Unspecified,
     content: @Composable RowScope.() -> Unit,
 ) {
     val animationScope = rememberCoroutineScope()
+    val tuning = LocalLiquidGlassTuning.current
+    val surfaceColor = liquidGlassSurfaceColor()
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -66,10 +66,16 @@ fun LiquidButton(
                 backdrop = LocalLiquidCardBackdrop.current,
                 shape = { Capsule() },
                 effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(12f.dp.toPx(), 24f.dp.toPx())
+                    if (tuning.vibrancy) vibrancy()
+                    blur(tuning.blurDp.dp.toPx())
+                    lens(
+                        tuning.refractionHeightDp.dp.toPx(),
+                        tuning.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = tuning.chromaticAberration,
+                        depthEffect = tuning.depthEffect,
+                    )
                 },
+                highlight = { liquidGlassHighlight() },
                 layerBlock = if (isInteractive) {
                     {
                         val width = size.width
@@ -98,15 +104,7 @@ fun LiquidButton(
                 } else {
                     null
                 },
-                onDrawSurface = {
-                    if (tint.isSpecified) {
-                        drawRect(tint, blendMode = BlendMode.Hue)
-                        drawRect(tint.copy(alpha = 0.75f))
-                    }
-                    if (surfaceColor.isSpecified) {
-                        drawRect(surfaceColor)
-                    }
-                }
+                onDrawSurface = { drawRect(surfaceColor) }
             )
             .clickable(
                 interactionSource = null,
@@ -129,13 +127,9 @@ fun LiquidButton(
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     ).let { row ->
-        // 与官方差异（app 适配）：默认内容色——tint 染色玻璃用白字，素玻璃用 onSurface；
-        // 显式指定颜色的调用不受影响
-        val contentColor = if (tint.isSpecified) {
-            Color.White
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        CompositionLocalProvider(LocalContentColor provides contentColor, content = { row })
+        CompositionLocalProvider(
+            LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+            content = { row },
+        )
     }
 }

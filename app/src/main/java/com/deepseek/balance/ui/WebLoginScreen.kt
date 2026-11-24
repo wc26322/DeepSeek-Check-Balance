@@ -2,30 +2,25 @@ package com.deepseek.balance.ui
 
 import android.annotation.SuppressLint
 import android.app.Activity
+
+import android.view.View
 import android.view.WindowManager
-import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
-import android.webkit.WebStorage
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,14 +31,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.text.font.FontWeight
+
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
 
 // 登录页（未登录时 SPA 会重定向到这里；登录成功后在 localStorage 写入 userToken）
-private const val LOGIN_URL = "https://platform.deepseek.com/login"
+private const val LOGIN_URL = "https://platform.deepseek.com/sign_in"
 private const val TOKEN_KEY = "userToken"
 
 // 修复 vivo/OriginOS 等 ROM 的 WebView 输入法光标 bug：
@@ -97,22 +93,65 @@ private const val TOKEN_PROBE_JS = """
 })()
 """
 
+
 /**
- * 全屏 WebView 登录页。
+ * App 内 WebView 的 html/body 高度会塌陷成 0，DeepSeek 登录页的 main 只按内容高度
+ * （约 488px）布局，登录表单在 488 内垂直居中，整体比浏览器高约 90px。
+ * 这里按 WebView 实际视口把 main 撑满，使登录表单几何与浏览器一致。
+ */
+private const val VIEWPORT_FILL_JS = """
+(function(){
+  var m = document.querySelector('main');
+  if (!m) return;
+  var w = window.innerWidth + 'px';
+  var h = window.innerHeight + 'px';
+  m.style.width = w;
+  m.style.height = h;
+  m.style.minHeight = h;
+  m.style.flex = 'none';
+})()
+"""
+
+/**
+ * 页面开始加载时就监听 main 的出现并立即撑满，避免 onPageFinished 后二次撑满
+ * 导致登录表单先按内容高度渲染、再向下跳动。
+ */
+private const val VIEWPORT_FILL_OBSERVER_JS = """
+(function(){
+  if (window.__dsViewportObserver) return;
+  window.__dsViewportObserver = true;
+  function fillMain() {
+    var m = document.querySelector('main');
+    if (!m) return;
+    var w = window.innerWidth + 'px';
+    var h = window.innerHeight + 'px';
+    if (m.style.width !== w) m.style.width = w;
+    if (m.style.height !== h) m.style.height = h;
+    if (m.style.minHeight !== h) m.style.minHeight = h;
+    if (m.style.flex !== 'none') m.style.flex = 'none';
+  }
+  fillMain();
+  document.addEventListener('DOMContentLoaded', fillMain);
+  new MutationObserver(fillMain).observe(document, { childList: true, subtree: true });
+})()
+"""
+
+/**
+ * 浏览器式 WebView 登录页。
  *
- * 打开前会清空 WebView 会话（Cookie + localStorage），确保显示登录表单而不是
- * 直接带旧登录态跳转。用户直接在网页表单里登录，App 轮询 localStorage 抓取
- * userToken 后自动回调保存。
+ * 不清空 WebView 会话：清空会丢掉横幅关闭状态、AB 分组等页面状态，导致同一页面
+ * 在 App 内多出公告横幅、表单位置偏移。已登录时 sign_in 会直接跳转，轮询 localStorage
+ * 仍能抓到 userToken 并自动回调保存。
  */
 @SuppressLint("SetJavaScriptEnabled")
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun WebLoginScreen(
     onTokenObtained: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     var isLoading by remember { mutableStateOf(true) }
-    var pageTitle by remember { mutableStateOf("") }
+
     var captured by remember { mutableStateOf(false) }
     var destroyed by remember { mutableStateOf(false) }
     val webViewHolder = remember { mutableStateOf<WebView?>(null) }
@@ -154,64 +193,80 @@ fun WebLoginScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (pageTitle.isBlank()) "登录 DeepSeek 网页端" else pageTitle,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { destroyed = true; onClose() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "关闭",
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { innerPadding ->
-        // AndroidView 的 factory 不是 @Composable 上下文，需先在此处取好主题色
-        val webBackground = MaterialTheme.colorScheme.background
+    // 全屏 WebView：无顶部栏、无返回按钮、无空白占位，页面区域占满系统栏之间的空间
+    val pageBackground = if (isSystemInDarkTheme()) Color(0xFF0F1115) else Color.White
+    val webBackground = pageBackground
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground),
+    ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
                 factory = { ctx ->
-                    WebView(ctx).apply {
+                    InputLoggingWebView(ctx).apply {
+                        id = View.generateViewId()
                         webViewHolder.value = this
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
-                        // 移动端视口：整页适配屏宽，避免内容显示不全 / 比例错乱
-                        settings.loadWithOverviewMode = true
+                        // UA 对齐 Chrome / Via：WebView 默认 UA 带完整设备型号、Build 号和完整内核版本，
+// 页面容易据此识别为 WebView 并下发不同版本的登录页。改成 Chrome reduced UA，
+// 与 Via 实际发出的 UA 一致（Android 10; K + Chrome 主版本.0.0.0）。
+                        val defaultUserAgent = settings.userAgentString
+                        val chromeMajorVersion = Regex("Chrome/(\\d+)")
+                            .find(defaultUserAgent)
+                            ?.groupValues
+                            ?.getOrNull(1)
+                            ?: "150"
+                        settings.userAgentString =
+                            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
+                            "(KHTML, like Gecko) Chrome/$chromeMajorVersion.0.0.0 Mobile Safari/537.36"
+                        // 视口对齐 Chrome：登录页自身声明了
+                        // width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no，
+                        // 这里严格按页面 viewport 的 initial-scale 渲染，不再用 loadWithOverviewMode
+                        // 二次缩放，否则 WebView 会把整页再缩放一次，字号和间距与浏览器不一致。
                         settings.useWideViewPort = true
-                        settings.setSupportZoom(false)
-                        settings.builtInZoomControls = false
+                        settings.loadWithOverviewMode = false
+                        // 页面已声明 user-scalable=no；保留手势缩放能力但不显示缩放按钮，
+                        // 与浏览器默认行为一致（是否真正可缩放由页面 viewport 决定）。
+                        settings.setSupportZoom(true)
+                        settings.builtInZoomControls = true
                         settings.displayZoomControls = false
+                        // 字体参数显式固定为 Chrome 默认值，避免 ROM 改写 textZoom / 默认字号
+                        settings.textZoom = 100
+                        settings.defaultFontSize = 16
+                        settings.minimumFontSize = 0
+                        settings.minimumLogicalFontSize = 8
+                        settings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL)
                         // 页面渲染前的背景用主题色，避免白屏闪一下
                         setBackgroundColor(webBackground.toArgb())
                         webViewClient = object : WebViewClient() {
+                            override fun onPageStarted(
+                                view: WebView?,
+                                url: String?,
+                                favicon: android.graphics.Bitmap?,
+                            ) {
+                                super.onPageStarted(view, url, favicon)
+                                view?.evaluateJavascript(VIEWPORT_FILL_OBSERVER_JS, null)
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 isLoading = false
-                                view?.evaluateJavascript("document.title") { t ->
-                                    pageTitle = t.parseJsString()
-                                }
+
                                 // 注入光标修复：每次输入后把插入点拉回末尾（绕开 vivo WebView 光标 bug）
                                 view?.evaluateJavascript(CARET_FIX_JS, null)
                                 // 每页加载完兜底检查一次 token
                                 pollToken()
+                                // 撑满登录页 main：App 内 html/body 高度塌陷会让表单整体偏高
+                                view?.evaluateJavascript(VIEWPORT_FILL_JS, null)
+
                             }
 
                             // 在 WebView 内打开所有链接（登录流程不跳出到外部浏览器）
@@ -220,13 +275,10 @@ fun WebLoginScreen(
                                 request: WebResourceRequest?,
                             ): Boolean = false
                         }
-                        // 打开登录页前清空 WebView 会话（Cookie + localStorage）：
-                        // 否则已登录时 /login 会直接带登录态跳转、token 秒抓，看不到登录表单
-                        CookieManager.getInstance().removeAllCookies {
-                            CookieManager.getInstance().flush()
-                            WebStorage.getInstance().deleteAllData()
-                            loadUrl(LOGIN_URL)
-                        }
+                        // 不再清空 Cookie/localStorage：清空会丢掉横幅关闭状态、AB 分组等页面状态，
+                        // 导致同一页面在 App 内多出更新公告横幅，登录表单整体下移。
+                        // 已登录时 sign_in 会直接跳转，pollToken 仍能抓到 token 并自动关闭。
+                        loadUrl(LOGIN_URL)
                     }
                 },
                 onRelease = { view ->
@@ -240,7 +292,7 @@ fun WebLoginScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
+                        .background(pageBackground),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(
@@ -256,7 +308,8 @@ fun WebLoginScreen(
                     }
                 }
             }
-        }
+
+            }
     }
 }
 

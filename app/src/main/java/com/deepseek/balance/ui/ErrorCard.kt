@@ -11,14 +11,14 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 internal fun ErrorCard(message: String) {
-    Spacer(modifier = Modifier.height(24.dp))
+
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
 
 
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(UiSpacing.Xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(

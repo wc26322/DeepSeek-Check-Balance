@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -304,7 +305,11 @@ private fun BalanceAppContent(
     var showSettings by remember { mutableStateOf(false) }
 
     // 网页一键登录（WebView 覆盖层）
-    var showWebLogin by remember { mutableStateOf(false) }
+    // 仅 debug 构建：允许通过 Intent 额外参数直接打开登录页，用于自动几何诊断
+    val hostActivity = LocalContext.current as? ComponentActivity
+    val debugOpenWebLogin = hostActivity?.intent?.getBooleanExtra("open_web_login", false) == true &&
+        (hostActivity.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    var showWebLogin by remember { mutableStateOf(debugOpenWebLogin) }
 
     // 标记当前页面，便于在 Logcat 中区分主界面/设置页的掉帧
     LaunchedEffect(showSettings) {

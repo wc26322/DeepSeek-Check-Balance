@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -90,7 +91,6 @@ internal fun UsageSection(
         { _, _ -> null },
     refreshCount: Int = 0,
 ) {
-    Spacer(modifier = Modifier.height(24.dp))
 
     // 错误优先
     if (usageError != null) {
@@ -174,7 +174,7 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(UiSpacing.Xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -209,7 +209,7 @@ private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(UiSpacing.Xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -243,11 +243,12 @@ private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
 @Composable
 private fun UsageOverviewCard(usage: UsageData) {
     LiquidCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("home:usageOverview"),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(UiSpacing.Xl)) {
             Text(
                 text = "用量概览",
+                modifier = Modifier.testTag("home:usageOverview:first"),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -268,6 +269,7 @@ private fun UsageOverviewCard(usage: UsageData) {
             Spacer(modifier = Modifier.height(12.dp))
             OverviewBar(
                 label = "30天 Tokens",
+                modifier = Modifier.testTag("home:usageOverview:last"),
                 value = formatLong(usage.totalTokens),
                 color = Color(0xFF4CAF50),
             )
@@ -277,9 +279,9 @@ private fun UsageOverviewCard(usage: UsageData) {
 
 /** 概览数据行：装饰色条 + 标签 + 数值。色条固定长度不做比例，仅作色彩点缀区分三个维度 */
 @Composable
-private fun OverviewBar(label: String, value: String, color: Color) {
+private fun OverviewBar(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 固定长度装饰色条（圆角小方块）
@@ -326,7 +328,7 @@ private fun UsageListCard(
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(UiSpacing.Xl)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
@@ -552,7 +554,7 @@ private fun DailyUsageCard(
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(UiSpacing.Xl)) {
             Text(
                 text = "每日用量",
                 style = MaterialTheme.typography.titleSmall,
@@ -864,7 +866,7 @@ private fun CustomRangePicker(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             tonalElevation = 6.dp,
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(UiSpacing.Xl)) {
                 Text(
                     text = "选择日期范围",
                     style = MaterialTheme.typography.titleSmall,

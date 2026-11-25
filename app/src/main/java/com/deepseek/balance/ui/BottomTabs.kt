@@ -61,6 +61,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.LayoutDirection
@@ -364,11 +365,11 @@ internal fun BottomTabs(
                 .padding(vertical = 8f.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = {
-                LiquidBottomTab(onClick = { onTabSelected(false) }) {
+                LiquidBottomTab(onClick = { onTabSelected(false) }, modifier = Modifier.testTag("nav:bottom:item:home")) {
                     Icon(Icons.Filled.Home, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
                     Text("首页", fontSize = 12f.sp, color = contentColor)
                 }
-                LiquidBottomTab(onClick = { onTabSelected(true) }) {
+                LiquidBottomTab(onClick = { onTabSelected(true) }, modifier = Modifier.testTag("nav:bottom:item:settings")) {
                     Icon(Icons.Filled.Settings, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
                     Text("设置", fontSize = 12f.sp, color = contentColor)
                 }
@@ -415,11 +416,11 @@ internal fun BottomTabs(
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
                 verticalAlignment = Alignment.CenterVertically,
                 content = {
-                    LiquidBottomTab(onClick = { onTabSelected(false) }) {
+                LiquidBottomTab(onClick = { onTabSelected(false) }) {
                         Icon(Icons.Filled.Home, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
                         Text("首页", fontSize = 12f.sp, color = contentColor)
                     }
-                    LiquidBottomTab(onClick = { onTabSelected(true) }) {
+                LiquidBottomTab(onClick = { onTabSelected(true) }) {
                         Icon(Icons.Filled.Settings, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
                         Text("设置", fontSize = 12f.sp, color = contentColor)
                     }

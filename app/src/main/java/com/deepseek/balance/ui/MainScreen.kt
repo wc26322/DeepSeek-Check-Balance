@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -146,66 +147,71 @@ fun MainScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp)
+                    .testTag("home:content")
+                    .padding(horizontal = UiSpacing.Xxl)
                     .verticalScroll(scrollState),
             ) {
                 // 顶部让出悬浮玻璃栏（8 顶距 + 56 栏高 + 8 间距），初始时余额卡片不被遮挡
                 Spacer(modifier = Modifier.height(72.dp))
 
-                AnimatedVisibility(
-                    visible = result != null,
-                    enter = fadeIn(animationSpec = tween(300)),
-                    exit = fadeOut(animationSpec = tween(200)),
-                ) {
-                    BalanceCard(
-                        symbol = symbol,
-                        totalBalance = totalBalance,
-                        statusText = statusText,
-                        statusColor = statusColor,
-                        grantedBalance = grantedBalance,
-                        toppedUpBalance = toppedUpBalance,
-                        totalCostCny = usage?.totalCostCny,
-                        refreshCount = refreshCount,
-                    )
-                }
+                // 页面统一拥有卡片间距；辅助更新时间使用独立 8dp 间距，不与卡片间距叠加
+                Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.Lg)) {
+                    if (result != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.Sm)) {
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(animationSpec = tween(300)),
+                                exit = fadeOut(animationSpec = tween(200)),
+                            ) {
+                                Box(modifier = Modifier.testTag("home:balanceCard")) {
+                                    BalanceCard(
+                                        symbol = symbol,
+                                        totalBalance = totalBalance,
+                                        statusText = statusText,
+                                        statusColor = statusColor,
+                                        grantedBalance = grantedBalance,
+                                        toppedUpBalance = toppedUpBalance,
+                                        totalCostCny = usage?.totalCostCny,
+                                        refreshCount = refreshCount,
+                                    )
+                                }
+                            }
+                            LastUpdateText(lastQueryTime)
+                        }
+                    } else {
+                        LastUpdateText(lastQueryTime)
+                    }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    // API Key 提示卡（未填写时显示，常驻不随刷新消失）
+                    if (!hasData) {
+                        Box(modifier = Modifier.testTag("home:emptyState")) {
+                            EmptyState(
+                                hasKey = hasKey || hasWebToken,
+                                onSettingsClick = onSettingsClick,
+                            )
+                        }
+                    }
 
-                // 上次更新时间：文本区域始终保留（null 时显示占位文案），
-                // 避免刷新完成后文本出现把下方卡片挤下移
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = lastQueryTime?.let { "上次更新 $it" } ?: "等待更新…",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                )
+                    // 用量明细（网页令牌鉴权）
+                    Box(modifier = Modifier.testTag("home:usageSection")) {
+                        UsageSection(
+                            usage = usage,
+                            usageError = usageError,
+                            hasWebToken = hasWebToken,
+                            webTokenInvalid = webTokenInvalid,
+                            onReLoginClick = onWebLoginClick,
+                            isLoading = isLoading,
+                            onSettingsClick = onSettingsClick,
+                            loadRangeDaily = loadRangeDaily,
+                            refreshCount = refreshCount,
+                        )
+                    }
 
-                // API Key 提示卡（未填写时显示，常驻不随刷新消失）
-                if (!hasData) {
-                    EmptyState(
-                        // 有网页令牌也能查余额（降级路径），所以“能查”的条件是二者任一
-                        hasKey = hasKey || hasWebToken,
-                        onSettingsClick = onSettingsClick,
-                    )
-                }
-
-                // 用量明细（网页令牌鉴权）
-                UsageSection(
-                    usage = usage,
-                    usageError = usageError,
-                    hasWebToken = hasWebToken,
-                    webTokenInvalid = webTokenInvalid,
-                    onReLoginClick = onWebLoginClick,
-                    isLoading = isLoading,
-                    onSettingsClick = onSettingsClick,
-                    loadRangeDaily = loadRangeDaily,
-                    refreshCount = refreshCount,
-                )
-
-                if (errorMessage != null) {
-                    ErrorCard(message = errorMessage)
+                    if (errorMessage != null) {
+                        Box(modifier = Modifier.testTag("home:errorCard")) {
+                            ErrorCard(message = errorMessage)
+                        }
+                    }
                 }
 
                 // 尾部留白：让最后一张卡能完整滚出底部悬浮标签栏（栏 64 + 底距 16 + 间隙 16）
@@ -226,6 +232,17 @@ fun MainScreen(
         )
         }
     }
+}
+
+@Composable
+private fun LastUpdateText(lastQueryTime: String?) {
+    Text(
+        text = lastQueryTime?.let { "上次更新 $it" } ?: "等待更新…",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth().testTag("home:lastUpdate"),
+        textAlign = TextAlign.Center,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

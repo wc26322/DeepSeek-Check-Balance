@@ -1,0 +1,1664 @@
+{
+  "mode": "audit-only",
+  "note": "仅事实统计，不含任何通过/失败判定；基线由人工在阶段 2 确认。",
+  "file_count": 40,
+  "files_with_findings": 13,
+  "global_value_distribution": {
+    "padding_named": {
+      "top=8": 4,
+      "horizontal=16": 4,
+      "horizontal=24": 3,
+      "horizontal=14": 3,
+      "horizontal=20": 3,
+      "bottom=16": 2,
+      "start=24": 2,
+      "end=24": 2,
+      "start=16": 2,
+      "vertical=8": 2,
+      "vertical=12": 2,
+      "vertical=16": 2,
+      "start=20": 1,
+      "end=20": 1,
+      "bottom=92": 1,
+      "end=8": 1,
+      "end=16": 1,
+      "bottom=4": 1,
+      "horizontal=4": 1,
+      "bottom=88": 1,
+      "top=72": 1,
+      "bottom=96": 1,
+      "start=8": 1,
+      "vertical=14": 1,
+      "vertical=10": 1,
+      "horizontal=10": 1,
+      "vertical=5": 1,
+      "horizontal=6": 1
+    },
+    "padding_uniform": {
+      "20": 9,
+      "16": 3,
+      "0": 1,
+      "24": 1,
+      "14": 1
+    },
+    "spacer": {
+      "height(12)": 24,
+      "height(8)": 20,
+      "height(10)": 12,
+      "height(4)": 8,
+      "height(24)": 7,
+      "height(16)": 6,
+      "width(4)": 5,
+      "width(6)": 4,
+      "width(2)": 4,
+      "height(2)": 4,
+      "height(20)": 3,
+      "width(16)": 2,
+      "width(8)": 2,
+      "height(3)": 1,
+      "height(72)": 1,
+      "height(6)": 1,
+      "height(96)": 1,
+      "width(10)": 1,
+      "width(5)": 1
+    },
+    "spaced_by": {
+      "12": 2,
+      "16": 2,
+      "64": 1,
+      "0": 1,
+      "8": 1,
+      "10": 1
+    },
+    "dimension": {
+      "height(12)": 24,
+      "height(8)": 21,
+      "height(10)": 12,
+      "height(4)": 8,
+      "height(24)": 7,
+      "height(16)": 6,
+      "width(4)": 5,
+      "size(16)": 4,
+      "width(6)": 4,
+      "width(2)": 4,
+      "height(2)": 4,
+      "size(20)": 3,
+      "height(20)": 3,
+      "size(14)": 3,
+      "size(18)": 2,
+      "width(16)": 2,
+      "size(36)": 2,
+      "width(8)": 2,
+      "size(8)": 2,
+      "height(52)": 2,
+      "width(360)": 2,
+      "height(3)": 1,
+      "height(72)": 1,
+      "height(6)": 1,
+      "height(96)": 1,
+      "size(15)": 1,
+      "size(24)": 1,
+      "height(56)": 1,
+      "width(10)": 1,
+      "size(10)": 1,
+      "width(5)": 1,
+      "height(200)": 1
+    },
+    "rounded_rectangle": {
+      "32": 1
+    },
+    "rounded_corner_shape": {
+      "12": 6,
+      "16": 3,
+      "24": 2,
+      "28": 2,
+      "4": 2,
+      "10": 2,
+      "14": 1,
+      "8": 1,
+      "2": 1
+    },
+    "font_size": {
+      "14": 5,
+      "15": 3,
+      "16": 2,
+      "12": 2,
+      "13": 1,
+      "57": 1,
+      "45": 1,
+      "36": 1,
+      "32": 1,
+      "28": 1,
+      "24": 1,
+      "22": 1,
+      "11": 1
+    },
+    "fraction": {
+      "0.72": 1
+    }
+  },
+  "per_file": {
+    "com/deepseek/balance/MainActivity.kt": {
+      "padding_named": [
+        {
+          "value": "bottom=16",
+          "line": 718
+        },
+        {
+          "value": "horizontal=24",
+          "line": 719
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/BalanceCard.kt": {
+      "padding_uniform": [
+        {
+          "value": "20",
+          "line": 44
+        }
+      ],
+      "spacer": [
+        {
+          "value": "height(8)",
+          "line": 31
+        },
+        {
+          "value": "height(3)",
+          "line": 64
+        },
+        {
+          "value": "height(24)",
+          "line": 90
+        },
+        {
+          "value": "height(8)",
+          "line": 134
+        }
+      ],
+      "spaced_by": [
+        {
+          "value": "64",
+          "line": 93
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(8)",
+          "line": 31
+        },
+        {
+          "value": "height(3)",
+          "line": 64
+        },
+        {
+          "value": "height(24)",
+          "line": 90
+        },
+        {
+          "value": "height(8)",
+          "line": 134
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/BalanceLine.kt": {
+      "spacer": [
+        {
+          "value": "height(4)",
+          "line": 26
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(4)",
+          "line": 26
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/EmptyState.kt": {
+      "padding_uniform": [
+        {
+          "value": "20",
+          "line": 24
+        }
+      ],
+      "spacer": [
+        {
+          "value": "height(24)",
+          "line": 17
+        },
+        {
+          "value": "height(8)",
+          "line": 33
+        },
+        {
+          "value": "height(12)",
+          "line": 40
+        },
+        {
+          "value": "width(6)",
+          "line": 47
+        },
+        {
+          "value": "height(4)",
+          "line": 56
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(24)",
+          "line": 17
+        },
+        {
+          "value": "height(8)",
+          "line": 33
+        },
+        {
+          "value": "height(12)",
+          "line": 40
+        },
+        {
+          "value": "size(16)",
+          "line": 45
+        },
+        {
+          "value": "width(6)",
+          "line": 47
+        },
+        {
+          "value": "height(4)",
+          "line": 56
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/ErrorCard.kt": {
+      "padding_uniform": [
+        {
+          "value": "16",
+          "line": 21
+        }
+      ],
+      "spacer": [
+        {
+          "value": "height(24)",
+          "line": 14
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(24)",
+          "line": 14
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/GlassPlaygroundPage.kt": {
+      "padding_uniform": [
+        {
+          "value": "16",
+          "line": 109
+        },
+        {
+          "value": "16",
+          "line": 239
+        }
+      ],
+      "padding_named": [
+        {
+          "value": "start=24",
+          "line": 97
+        },
+        {
+          "value": "top=8",
+          "line": 98
+        },
+        {
+          "value": "end=24",
+          "line": 99
+        },
+        {
+          "value": "bottom=16",
+          "line": 100
+        },
+        {
+          "value": "start=20",
+          "line": 150
+        },
+        {
+          "value": "end=20",
+          "line": 150
+        },
+        {
+          "value": "bottom=92",
+          "line": 150
+        },
+        {
+          "value": "start=16",
+          "line": 193
+        },
+        {
+          "value": "end=8",
+          "line": 193
+        },
+        {
+          "value": "top=8",
+          "line": 193
+        },
+        {
+          "value": "start=16",
+          "line": 216
+        },
+        {
+          "value": "end=16",
+          "line": 216
+        },
+        {
+          "value": "bottom=4",
+          "line": 216
+        },
+        {
+          "value": "horizontal=4",
+          "line": 222
+        },
+        {
+          "value": "vertical=8",
+          "line": 432
+        }
+      ],
+      "spacer": [
+        {
+          "value": "height(8)",
+          "line": 115
+        },
+        {
+          "value": "height(4)",
+          "line": 121
+        },
+        {
+          "value": "width(2)",
+          "line": 204
+        },
+        {
+          "value": "height(12)",
+          "line": 327
+        },
+        {
+          "value": "height(8)",
+          "line": 420
+        },
+        {
+          "value": "width(16)",
+          "line": 437
+        }
+      ],
+      "spaced_by": [
+        {
+          "value": "12",
+          "line": 102
+        }
+      ],
+      "rounded_rectangle": [
+        {
+          "value": "32",
+          "line": 180
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(8)",
+          "line": 115
+        },
+        {
+          "value": "height(4)",
+          "line": 121
+        },
+        {
+          "value": "width(2)",
+          "line": 204
+        },
+        {
+          "value": "size(18)",
+          "line": 208
+        },
+        {
+          "value": "height(12)",
+          "line": 327
+        },
+        {
+          "value": "height(8)",
+          "line": 420
+        },
+        {
+          "value": "width(16)",
+          "line": 437
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/MainScreen.kt": {
+      "padding_named": [
+        {
+          "value": "bottom=88",
+          "line": 111
+        },
+        {
+          "value": "top=72",
+          "line": 142
+        },
+        {
+          "value": "horizontal=24",
+          "line": 149
+        },
+        {
+          "value": "top=8",
+          "line": 223
+        },
+        {
+          "value": "horizontal=16",
+          "line": 224
+        }
+      ],
+      "spacer": [
+        {
+          "value": "height(72)",
+          "line": 153
+        },
+        {
+          "value": "height(24)",
+          "line": 172
+        },
+        {
+          "value": "height(6)",
+          "line": 176
+        },
+        {
+          "value": "height(96)",
+          "line": 212
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(72)",
+          "line": 153
+        },
+        {
+          "value": "height(24)",
+          "line": 172
+        },
+        {
+          "value": "height(6)",
+          "line": 176
+        },
+        {
+          "value": "height(96)",
+          "line": 212
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/SettingsScreen.kt": {
+      "padding_uniform": [
+        {
+          "value": "20",
+          "line": 219
+        },
+        {
+          "value": "0",
+          "line": 236
+        },
+        {
+          "value": "24",
+          "line": 1440
+        }
+      ],
+      "padding_named": [
+        {
+          "value": "start=24",
+          "line": 160
+        },
+        {
+          "value": "top=8",
+          "line": 160
+        },
+        {
+          "value": "end=24",
+          "line": 160
+        },
+        {
+          "value": "bottom=96",
+          "line": 160
+        },
+        {
+          "value": "horizontal=14",
+          "line": 286
+        },
+        {
+          "value": "vertical=12",
+          "line": 286
+        },
+        {
+          "value": "start=8",
+          "line": 324
+        },
+        {
+          "value": "horizontal=20",
+          "line": 846
+        },
+        {
+          "value": "horizontal=20",
+          "line": 857
+        },
+        {
+          "value": "vertical=16",
+          "line": 857
+        },
+        {
+          "value": "horizontal=24",
+          "line": 1437
+        },
+        {
+          "value": "horizontal=16",
+          "line": 1583
+        },
+        {
+          "value": "vertical=14",
+          "line": 1583
+        },
+        {
+          "value": "horizontal=16",
+          "line": 1651
+        },
+        {
+          "value": "vertical=12",
+          "line": 1651
+        }
+      ],
+      "spacer": [
+        {
+          "value": "width(4)",
+          "line": 273
+        },
+        {
+          "value": "height(12)",
+          "line": 343
+        },
+        {
+          "value": "height(10)",
+          "line": 376
+        },
+        {
+          "value": "height(10)",
+          "line": 383
+        },
+        {
+          "value": "height(12)",
+          "line": 411
+        },
+        {
+          "value": "height(10)",
+          "line": 443
+        },
+        {
+          "value": "height(10)",
+          "line": 460
+        },
+        {
+          "value": "width(4)",
+          "line": 498
+        },
+        {
+          "value": "height(16)",
+          "line": 512
+        },
+        {
+          "value": "height(8)",
+          "line": 518
+        },
+        {
+          "value": "width(4)",
+          "line": 597
+        },
+        {
+          "value": "height(16)",
+          "line": 611
+        },
+        {
+          "value": "height(8)",
+          "line": 617
+        },
+        {
+          "value": "height(4)",
+          "line": 652
+        },
+        {
+          "value": "height(12)",
+          "line": 733
+        },
+        {
+          "value": "height(8)",
+          "line": 744
+        },
+        {
+          "value": "height(12)",
+          "line": 770
+        },
+        {
+          "value": "width(4)",
+          "line": 873
+        },
+        {
+          "value": "height(12)",
+          "line": 887
+        },
+        {
+          "value": "width(2)",
+          "line": 903
+        },
+        {
+          "value": "height(12)",
+          "line": 912
+        },
+        {
+          "value": "height(8)",
+          "line": 922
+        },
+        {
+          "value": "height(8)",
+          "line": 970
+        },
+        {
+          "value": "width(2)",
+          "line": 984
+        },
+        {
+          "value": "height(12)",
+          "line": 993
+        },
+        {
+          "value": "height(8)",
+          "line": 1056
+        },
+        {
+          "value": "width(2)",
+          "line": 1084
+        },
+        {
+          "value": "height(12)",
+          "line": 1104
+        },
+        {
+          "value": "height(8)",
+          "line": 1304
+        },
+        {
+          "value": "height(2)",
+          "line": 1311
+        },
+        {
+          "value": "height(24)",
+          "line": 1317
+        },
+        {
+          "value": "height(10)",
+          "line": 1330
+        },
+        {
+          "value": "height(10)",
+          "line": 1345
+        },
+        {
+          "value": "height(4)",
+          "line": 1377
+        },
+        {
+          "value": "height(4)",
+          "line": 1449
+        },
+        {
+          "value": "height(24)",
+          "line": 1455
+        },
+        {
+          "value": "height(10)",
+          "line": 1466
+        },
+        {
+          "value": "height(20)",
+          "line": 1473
+        },
+        {
+          "value": "height(10)",
+          "line": 1489
+        },
+        {
+          "value": "height(20)",
+          "line": 1495
+        },
+        {
+          "value": "width(16)",
+          "line": 1500
+        },
+        {
+          "value": "height(10)",
+          "line": 1518
+        },
+        {
+          "value": "height(4)",
+          "line": 1529
+        },
+        {
+          "value": "height(20)",
+          "line": 1536
+        },
+        {
+          "value": "height(12)",
+          "line": 1551
+        },
+        {
+          "value": "height(8)",
+          "line": 1560
+        },
+        {
+          "value": "height(12)",
+          "line": 1572
+        },
+        {
+          "value": "width(8)",
+          "line": 1590
+        },
+        {
+          "value": "height(8)",
+          "line": 1605
+        },
+        {
+          "value": "height(12)",
+          "line": 1608
+        },
+        {
+          "value": "height(8)",
+          "line": 1619
+        }
+      ],
+      "spaced_by": [
+        {
+          "value": "16",
+          "line": 161
+        },
+        {
+          "value": "0",
+          "line": 858
+        }
+      ],
+      "rounded_corner_shape": [
+        {
+          "value": "24",
+          "line": 255
+        },
+        {
+          "value": "14",
+          "line": 284
+        },
+        {
+          "value": "28",
+          "line": 849
+        },
+        {
+          "value": "28",
+          "line": 1433
+        },
+        {
+          "value": "4",
+          "line": 1516
+        },
+        {
+          "value": "12",
+          "line": 1638
+        }
+      ],
+      "dimension": [
+        {
+          "value": "size(20)",
+          "line": 235
+        },
+        {
+          "value": "size(15)",
+          "line": 242
+        },
+        {
+          "value": "width(4)",
+          "line": 273
+        },
+        {
+          "value": "size(18)",
+          "line": 325
+        },
+        {
+          "value": "height(12)",
+          "line": 343
+        },
+        {
+          "value": "height(10)",
+          "line": 376
+        },
+        {
+          "value": "height(10)",
+          "line": 383
+        },
+        {
+          "value": "height(12)",
+          "line": 411
+        },
+        {
+          "value": "height(10)",
+          "line": 443
+        },
+        {
+          "value": "height(10)",
+          "line": 460
+        },
+        {
+          "value": "width(4)",
+          "line": 498
+        },
+        {
+          "value": "height(16)",
+          "line": 512
+        },
+        {
+          "value": "height(8)",
+          "line": 518
+        },
+        {
+          "value": "width(4)",
+          "line": 597
+        },
+        {
+          "value": "height(16)",
+          "line": 611
+        },
+        {
+          "value": "height(8)",
+          "line": 617
+        },
+        {
+          "value": "height(4)",
+          "line": 652
+        },
+        {
+          "value": "height(12)",
+          "line": 733
+        },
+        {
+          "value": "height(8)",
+          "line": 744
+        },
+        {
+          "value": "height(12)",
+          "line": 770
+        },
+        {
+          "value": "width(4)",
+          "line": 873
+        },
+        {
+          "value": "height(12)",
+          "line": 887
+        },
+        {
+          "value": "width(2)",
+          "line": 903
+        },
+        {
+          "value": "height(12)",
+          "line": 912
+        },
+        {
+          "value": "height(8)",
+          "line": 922
+        },
+        {
+          "value": "height(8)",
+          "line": 970
+        },
+        {
+          "value": "width(2)",
+          "line": 984
+        },
+        {
+          "value": "height(12)",
+          "line": 993
+        },
+        {
+          "value": "height(8)",
+          "line": 1056
+        },
+        {
+          "value": "width(2)",
+          "line": 1084
+        },
+        {
+          "value": "height(12)",
+          "line": 1104
+        },
+        {
+          "value": "height(8)",
+          "line": 1304
+        },
+        {
+          "value": "height(2)",
+          "line": 1311
+        },
+        {
+          "value": "height(24)",
+          "line": 1317
+        },
+        {
+          "value": "height(10)",
+          "line": 1330
+        },
+        {
+          "value": "height(10)",
+          "line": 1345
+        },
+        {
+          "value": "height(4)",
+          "line": 1377
+        },
+        {
+          "value": "height(4)",
+          "line": 1449
+        },
+        {
+          "value": "height(24)",
+          "line": 1455
+        },
+        {
+          "value": "size(36)",
+          "line": 1464
+        },
+        {
+          "value": "height(10)",
+          "line": 1466
+        },
+        {
+          "value": "height(20)",
+          "line": 1473
+        },
+        {
+          "value": "size(36)",
+          "line": 1487
+        },
+        {
+          "value": "height(10)",
+          "line": 1489
+        },
+        {
+          "value": "height(20)",
+          "line": 1495
+        },
+        {
+          "value": "width(16)",
+          "line": 1500
+        },
+        {
+          "value": "height(8)",
+          "line": 1515
+        },
+        {
+          "value": "height(10)",
+          "line": 1518
+        },
+        {
+          "value": "height(4)",
+          "line": 1529
+        },
+        {
+          "value": "height(20)",
+          "line": 1536
+        },
+        {
+          "value": "height(12)",
+          "line": 1551
+        },
+        {
+          "value": "size(24)",
+          "line": 1557
+        },
+        {
+          "value": "height(8)",
+          "line": 1560
+        },
+        {
+          "value": "height(12)",
+          "line": 1572
+        },
+        {
+          "value": "size(14)",
+          "line": 1587
+        },
+        {
+          "value": "width(8)",
+          "line": 1590
+        },
+        {
+          "value": "height(8)",
+          "line": 1605
+        },
+        {
+          "value": "height(12)",
+          "line": 1608
+        },
+        {
+          "value": "height(8)",
+          "line": 1619
+        }
+      ],
+      "font_size": [
+        {
+          "value": "14",
+          "line": 363
+        },
+        {
+          "value": "14",
+          "line": 431
+        },
+        {
+          "value": "15",
+          "line": 902
+        },
+        {
+          "value": "15",
+          "line": 983
+        },
+        {
+          "value": "15",
+          "line": 1083
+        },
+        {
+          "value": "13",
+          "line": 1090
+        }
+      ],
+      "fraction": [
+        {
+          "value": "0.72",
+          "line": 848
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/StatusChip.kt": {
+      "dimension": [
+        {
+          "value": "size(8)",
+          "line": 33
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/theme/Theme.kt": {
+      "rounded_corner_shape": [
+        {
+          "value": "4",
+          "line": 97
+        },
+        {
+          "value": "8",
+          "line": 98
+        },
+        {
+          "value": "12",
+          "line": 99
+        },
+        {
+          "value": "16",
+          "line": 100
+        },
+        {
+          "value": "24",
+          "line": 101
+        }
+      ],
+      "font_size": [
+        {
+          "value": "57",
+          "line": 105
+        },
+        {
+          "value": "45",
+          "line": 106
+        },
+        {
+          "value": "36",
+          "line": 107
+        },
+        {
+          "value": "32",
+          "line": 108
+        },
+        {
+          "value": "28",
+          "line": 109
+        },
+        {
+          "value": "24",
+          "line": 110
+        },
+        {
+          "value": "22",
+          "line": 111
+        },
+        {
+          "value": "16",
+          "line": 112
+        },
+        {
+          "value": "14",
+          "line": 113
+        },
+        {
+          "value": "16",
+          "line": 114
+        },
+        {
+          "value": "14",
+          "line": 115
+        },
+        {
+          "value": "12",
+          "line": 116
+        },
+        {
+          "value": "14",
+          "line": 117
+        },
+        {
+          "value": "12",
+          "line": 118
+        },
+        {
+          "value": "11",
+          "line": 119
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/TopBar.kt": {
+      "padding_named": [
+        {
+          "value": "horizontal=20",
+          "line": 46
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(56)",
+          "line": 29
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/UsageSection.kt": {
+      "padding_uniform": [
+        {
+          "value": "20",
+          "line": 177
+        },
+        {
+          "value": "20",
+          "line": 212
+        },
+        {
+          "value": "20",
+          "line": 248
+        },
+        {
+          "value": "20",
+          "line": 329
+        },
+        {
+          "value": "20",
+          "line": 555
+        },
+        {
+          "value": "20",
+          "line": 867
+        },
+        {
+          "value": "14",
+          "line": 1264
+        }
+      ],
+      "padding_named": [
+        {
+          "value": "vertical=10",
+          "line": 355
+        },
+        {
+          "value": "horizontal=10",
+          "line": 419
+        },
+        {
+          "value": "vertical=5",
+          "line": 419
+        },
+        {
+          "value": "vertical=16",
+          "line": 725
+        },
+        {
+          "value": "horizontal=14",
+          "line": 764
+        },
+        {
+          "value": "horizontal=6",
+          "line": 822
+        },
+        {
+          "value": "horizontal=14",
+          "line": 959
+        },
+        {
+          "value": "horizontal=16",
+          "line": 1041
+        },
+        {
+          "value": "vertical=8",
+          "line": 1041
+        }
+      ],
+      "spacer": [
+        {
+          "value": "height(24)",
+          "line": 93
+        },
+        {
+          "value": "height(12)",
+          "line": 99
+        },
+        {
+          "value": "height(12)",
+          "line": 102
+        },
+        {
+          "value": "height(16)",
+          "line": 111
+        },
+        {
+          "value": "height(16)",
+          "line": 134
+        },
+        {
+          "value": "height(16)",
+          "line": 137
+        },
+        {
+          "value": "height(16)",
+          "line": 150
+        },
+        {
+          "value": "height(8)",
+          "line": 185
+        },
+        {
+          "value": "height(12)",
+          "line": 192
+        },
+        {
+          "value": "width(6)",
+          "line": 199
+        },
+        {
+          "value": "height(8)",
+          "line": 220
+        },
+        {
+          "value": "height(12)",
+          "line": 227
+        },
+        {
+          "value": "width(6)",
+          "line": 234
+        },
+        {
+          "value": "height(12)",
+          "line": 254
+        },
+        {
+          "value": "height(12)",
+          "line": 262
+        },
+        {
+          "value": "height(12)",
+          "line": 268
+        },
+        {
+          "value": "width(10)",
+          "line": 292
+        },
+        {
+          "value": "width(8)",
+          "line": 341
+        },
+        {
+          "value": "height(12)",
+          "line": 349
+        },
+        {
+          "value": "height(2)",
+          "line": 365
+        },
+        {
+          "value": "height(8)",
+          "line": 372
+        },
+        {
+          "value": "height(8)",
+          "line": 381
+        },
+        {
+          "value": "width(6)",
+          "line": 427
+        },
+        {
+          "value": "height(2)",
+          "line": 561
+        },
+        {
+          "value": "height(10)",
+          "line": 567
+        },
+        {
+          "value": "height(12)",
+          "line": 670
+        },
+        {
+          "value": "height(4)",
+          "line": 680
+        },
+        {
+          "value": "height(12)",
+          "line": 708
+        },
+        {
+          "value": "height(12)",
+          "line": 873
+        },
+        {
+          "value": "height(8)",
+          "line": 879
+        },
+        {
+          "value": "height(10)",
+          "line": 885
+        },
+        {
+          "value": "width(5)",
+          "line": 1063
+        },
+        {
+          "value": "height(10)",
+          "line": 1281
+        },
+        {
+          "value": "width(4)",
+          "line": 1304
+        },
+        {
+          "value": "height(2)",
+          "line": 1311
+        }
+      ],
+      "spaced_by": [
+        {
+          "value": "8",
+          "line": 376
+        },
+        {
+          "value": "10",
+          "line": 571
+        },
+        {
+          "value": "16",
+          "line": 674
+        }
+      ],
+      "rounded_corner_shape": [
+        {
+          "value": "2",
+          "line": 289
+        },
+        {
+          "value": "16",
+          "line": 594
+        },
+        {
+          "value": "16",
+          "line": 641
+        },
+        {
+          "value": "12",
+          "line": 756
+        },
+        {
+          "value": "12",
+          "line": 758
+        },
+        {
+          "value": "10",
+          "line": 809
+        },
+        {
+          "value": "10",
+          "line": 832
+        },
+        {
+          "value": "12",
+          "line": 945
+        },
+        {
+          "value": "12",
+          "line": 952
+        }
+      ],
+      "dimension": [
+        {
+          "value": "height(24)",
+          "line": 93
+        },
+        {
+          "value": "height(12)",
+          "line": 99
+        },
+        {
+          "value": "height(12)",
+          "line": 102
+        },
+        {
+          "value": "height(16)",
+          "line": 111
+        },
+        {
+          "value": "height(16)",
+          "line": 134
+        },
+        {
+          "value": "height(16)",
+          "line": 137
+        },
+        {
+          "value": "height(16)",
+          "line": 150
+        },
+        {
+          "value": "height(8)",
+          "line": 185
+        },
+        {
+          "value": "height(12)",
+          "line": 192
+        },
+        {
+          "value": "size(16)",
+          "line": 197
+        },
+        {
+          "value": "width(6)",
+          "line": 199
+        },
+        {
+          "value": "height(8)",
+          "line": 220
+        },
+        {
+          "value": "height(12)",
+          "line": 227
+        },
+        {
+          "value": "size(16)",
+          "line": 232
+        },
+        {
+          "value": "width(6)",
+          "line": 234
+        },
+        {
+          "value": "height(12)",
+          "line": 254
+        },
+        {
+          "value": "height(12)",
+          "line": 262
+        },
+        {
+          "value": "height(12)",
+          "line": 268
+        },
+        {
+          "value": "width(10)",
+          "line": 292
+        },
+        {
+          "value": "size(16)",
+          "line": 338
+        },
+        {
+          "value": "width(8)",
+          "line": 341
+        },
+        {
+          "value": "height(12)",
+          "line": 349
+        },
+        {
+          "value": "height(2)",
+          "line": 365
+        },
+        {
+          "value": "height(8)",
+          "line": 372
+        },
+        {
+          "value": "height(8)",
+          "line": 381
+        },
+        {
+          "value": "width(6)",
+          "line": 427
+        },
+        {
+          "value": "height(2)",
+          "line": 561
+        },
+        {
+          "value": "height(10)",
+          "line": 567
+        },
+        {
+          "value": "height(12)",
+          "line": 670
+        },
+        {
+          "value": "height(4)",
+          "line": 680
+        },
+        {
+          "value": "height(12)",
+          "line": 708
+        },
+        {
+          "value": "height(52)",
+          "line": 763
+        },
+        {
+          "value": "size(20)",
+          "line": 783
+        },
+        {
+          "value": "size(14)",
+          "line": 791
+        },
+        {
+          "value": "width(360)",
+          "line": 862
+        },
+        {
+          "value": "height(12)",
+          "line": 873
+        },
+        {
+          "value": "height(8)",
+          "line": 879
+        },
+        {
+          "value": "height(10)",
+          "line": 885
+        },
+        {
+          "value": "height(52)",
+          "line": 958
+        },
+        {
+          "value": "size(20)",
+          "line": 979
+        },
+        {
+          "value": "size(14)",
+          "line": 986
+        },
+        {
+          "value": "width(360)",
+          "line": 1026
+        },
+        {
+          "value": "size(10)",
+          "line": 1059
+        },
+        {
+          "value": "width(5)",
+          "line": 1063
+        },
+        {
+          "value": "height(200)",
+          "line": 1110
+        },
+        {
+          "value": "height(10)",
+          "line": 1281
+        },
+        {
+          "value": "size(8)",
+          "line": 1300
+        },
+        {
+          "value": "width(4)",
+          "line": 1304
+        },
+        {
+          "value": "height(2)",
+          "line": 1311
+        }
+      ]
+    },
+    "com/deepseek/balance/ui/WebLoginScreen.kt": {
+      "spaced_by": [
+        {
+          "value": "12",
+          "line": 300
+        }
+      ]
+    }
+  }
+}

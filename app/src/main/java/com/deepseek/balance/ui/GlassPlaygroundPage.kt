@@ -3,21 +3,24 @@ package com.deepseek.balance.ui
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,8 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -78,43 +83,47 @@ internal fun GlassPlaygroundPage(
         },
         containerColor = Color.Transparent,
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .then(if (expanded) Modifier.weight(1.2f) else Modifier)
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
+                    .testTag("lab:preview:root")
                     .padding(
-                        start = 24.dp,
-                        top = 8.dp,
-                        end = 24.dp,
-                        bottom = if (expanded) 450.dp else 150.dp,
+                        start = UiSpacing.Xxl,
+                        top = UiSpacing.Sm,
+                        end = UiSpacing.Xxl,
+                        bottom = UiSpacing.Lg,
                     ),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.Lg),
             ) {
                 TopBar(
                     backdrop = LocalLiquidCardBackdrop.current,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("lab:preview:topBar"),
                 )
-                LiquidCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                LiquidCard(modifier = Modifier.fillMaxWidth().testTag("lab:preview:balanceCard")) {
+                    Column(modifier = Modifier.padding(UiSpacing.Xl)) {
                         Text(
                             text = "示例余额卡片",
+                            modifier = Modifier.testTag("lab:preview:balanceCard:first"),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "¥ 123.45",
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "这里的圆角、透明度、模糊与折射会实时变化",
+                            text = "圆角、透明度、模糊与折射会实时变化",
+                            modifier = Modifier.testTag("lab:preview:balanceCard:last"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -123,15 +132,12 @@ internal fun GlassPlaygroundPage(
                 SettingsActionButton(
                     text = "示例玻璃按钮",
                     onClick = {},
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = "底部导航栏也使用当前参数；选中胶囊继续保留官方清晰渲染方式。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().testTag("lab:preview:sampleButton"),
                 )
             }
-
+            if (!expanded) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
             GlassLabControlPanel(
                 tuning = tuning,
                 navTuning = navTuning,
@@ -143,8 +149,10 @@ internal fun GlassPlaygroundPage(
                 onTuningCommit = onTuningCommit,
                 onNavTuningChange = navChange,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = 20.dp, end = 20.dp, bottom = 92.dp),
+                    .then(if (expanded) Modifier.weight(1f) else Modifier)
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, bottom = 92.dp)
+                    .testTag("lab:panel:root"),
             )
         }
     }
@@ -161,6 +169,7 @@ private fun GlassLabControlPanel(
     onTuningChange: (LiquidGlassTuning) -> Unit,
     onTuningCommit: (LiquidGlassTuning) -> Unit,
     onNavTuningChange: (NavGlassTuning) -> Unit,
+
     modifier: Modifier = Modifier,
 ) {
     val panelColor = if (isSystemInDarkTheme()) {
@@ -168,13 +177,11 @@ private fun GlassLabControlPanel(
     } else {
         Color.White.copy(alpha = 0.86f)
     }
-    var panelModifier = modifier.fillMaxWidth()
-    if (expanded) panelModifier = panelModifier.fillMaxHeight(0.55f)
 
     Column(
-        modifier = panelModifier.drawBackdrop(
+        modifier = modifier.fillMaxWidth().drawBackdrop(
             backdrop = LocalLiquidCardBackdrop.current,
-            shape = { RoundedRectangle(32.dp) },
+            shape = { RoundedRectangle(UiRadius.Glass) },
             effects = {
                 vibrancy()
                 blur(4.dp.toPx())
@@ -187,7 +194,7 @@ private fun GlassLabControlPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                .padding(start = UiSpacing.Lg, end = UiSpacing.Sm, top = UiSpacing.Sm),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -195,16 +202,32 @@ private fun GlassLabControlPanel(
                 text = "玻璃参数",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.testTag("lab:panel:title"),
             )
-            TextButton(onClick = { onExpandedChange(!expanded) }) {
+            TextButton(
+                onClick = { onExpandedChange(!expanded) },
+                modifier = Modifier.testTag("lab:panel:expandButton"),
+            ) {
                 Text(if (expanded) "收起" else "展开")
+                Spacer(modifier = Modifier.width(2.dp))
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
+        Text(
+            text = "底部导航栏同样使用当前参数，选中胶囊保持清晰渲染。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = UiSpacing.Lg, end = UiSpacing.Lg, bottom = UiSpacing.Xs).testTag("lab:panel:note"),
+        )
         if (expanded) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = UiSpacing.Xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 TextButton(onClick = { onTuningCommit(LiquidGlassTuning.officialClear()) }) {
@@ -219,9 +242,9 @@ private fun GlassLabControlPanel(
             }
             CompositionLocalProvider(LocalSliderDraggingChanged provides { onDraggingChange(it) }) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f).testTag("lab:panel:list"),
                     userScrollEnabled = !dragging,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(UiSpacing.Lg),
                 ) {
                     item {
                         GlassLabSectionTitle("全局玻璃材质")
@@ -229,6 +252,7 @@ private fun GlassLabControlPanel(
                     item {
                         GlassSlider(
                             label = "卡片圆角",
+                            modifier = Modifier.testTag("lab:panel:slider:cornerRadius"),
                             hint = "只调整卡片圆角，顶栏、按钮和导航保持胶囊形状",
                             value = tuning.cornerRadiusDp,
                             valueRange = 0f..48f,

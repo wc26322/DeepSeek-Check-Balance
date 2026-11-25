@@ -14,14 +14,13 @@ import androidx.compose.ui.unit.dp
 /** 空状态卡片：与「网页令牌」提示同款样式，稳定常驻，不随刷新闪烁 */
 @Composable
 internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
-    Spacer(modifier = Modifier.height(24.dp))
-    // 与「网页令牌」提示（NoTokenHint）同款液态玻璃容器：透出背景折射
+    // 外部间距由 MainScreen 统一控制；与「网页令牌」提示同款液态玻璃容器
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
 
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(UiSpacing.Xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (!hasKey) {

@@ -2,6 +2,9 @@ package com.deepseek.balance.ui
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.ApplicationInfo
+
+import android.util.Log
 
 import android.view.View
 import android.view.WindowManager
@@ -36,6 +39,7 @@ import androidx.compose.ui.graphics.toArgb
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+
 import kotlinx.coroutines.delay
 
 // 登录页（未登录时 SPA 会重定向到这里；登录成功后在 localStorage 写入 userToken）
@@ -104,11 +108,30 @@ private const val VIEWPORT_FILL_JS = """
   var m = document.querySelector('main');
   if (!m) return;
   var w = window.innerWidth + 'px';
-  var h = window.innerHeight + 'px';
-  m.style.width = w;
+  var top = Math.max(0, m.getBoundingClientRect().top);
+  var h = Math.max(0, window.innerHeight - top) + 'px';
+  // 只把 main 撑到视口剩余高度，不锁死 html/body，避免 SPA 根容器被裁成白屏
+  document.body.style.margin = '0';
+m.style.width = w;
   m.style.height = h;
   m.style.minHeight = h;
   m.style.flex = 'none';
+  // 页面自身在 main 上方预留了 116px 空白；上移 80px，只保留状态栏高度，
+  // 并把页头/表单/底部提示按可用高度重新分布，避免内容整体偏下。
+  var fittedH = (window.innerHeight - 36) + 'px';
+  m.style.position = 'relative';
+  m.style.marginTop = '-80px';
+  m.style.height = fittedH;
+  m.style.minHeight = fittedH;
+  m.style.justifyContent = 'space-between';
+  var wrap = m.querySelector('.ds-auth-form-wrapper');
+  if (wrap) {
+    wrap.style.position = 'absolute';
+    wrap.style.top = '98px';
+    wrap.style.left = '12px';
+    wrap.style.width = 'calc(100% - 24px)';
+    wrap.style.maxWidth = 'none';
+  }
 })()
 """
 
@@ -124,15 +147,78 @@ private const val VIEWPORT_FILL_OBSERVER_JS = """
     var m = document.querySelector('main');
     if (!m) return;
     var w = window.innerWidth + 'px';
-    var h = window.innerHeight + 'px';
+    var top = Math.max(0, m.getBoundingClientRect().top);
+    var h = Math.max(0, window.innerHeight - top) + 'px';
+if (document.body.style.margin !== '0px') document.body.style.margin = '0';
     if (m.style.width !== w) m.style.width = w;
-    if (m.style.height !== h) m.style.height = h;
-    if (m.style.minHeight !== h) m.style.minHeight = h;
+    if (m.style.marginTop !== '-80px') m.style.marginTop = '-80px';
+    var fittedH = (window.innerHeight - 36) + 'px';
+    if (m.style.position !== 'relative') m.style.position = 'relative';
+    if (m.style.marginTop !== '-80px') m.style.marginTop = '-80px';
+    if (m.style.height !== fittedH) m.style.height = fittedH;
+    if (m.style.minHeight !== fittedH) m.style.minHeight = fittedH;
+    if (m.style.justifyContent !== 'space-between') m.style.justifyContent = 'space-between';
+    var wrap = m.querySelector('.ds-auth-form-wrapper');
+    if (wrap) {
+      if (wrap.style.position !== 'absolute') wrap.style.position = 'absolute';
+      if (wrap.style.top !== '98px') wrap.style.top = '98px';
+      if (wrap.style.left !== '12px') wrap.style.left = '12px';
+      if (wrap.style.width !== 'calc(100% - 24px)') wrap.style.width = 'calc(100% - 24px)';
+      if (wrap.style.maxWidth !== 'none') wrap.style.maxWidth = 'none';
+    }
     if (m.style.flex !== 'none') m.style.flex = 'none';
   }
   fillMain();
   document.addEventListener('DOMContentLoaded', fillMain);
   new MutationObserver(fillMain).observe(document, { childList: true, subtree: true });
+})()
+"""
+
+private const val VIEWPORT_METRICS_JS = """
+(function(){
+  function box(el){
+    if (!el) return null;
+    var r = el.getBoundingClientRect();
+    return {tag: el.tagName, cls: String(el.className || '').slice(0, 80), top: Math.round(r.top), left: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height)};
+  }
+  var m = document.querySelector('main');
+  var first = m ? m.firstElementChild : null;
+  var form = document.querySelector('form');
+  var wrap = document.querySelector('.ds-auth-form-wrapper');
+  var wrapStyle = wrap ? window.getComputedStyle(wrap) : null;
+  var mainStyle = m ? window.getComputedStyle(m) : null;
+  var bodyStyle = document.body ? window.getComputedStyle(document.body) : null;
+  return JSON.stringify({
+    url: location.href,
+    iw: window.innerWidth, ih: window.innerHeight,
+    sh: document.documentElement.scrollHeight, bh: document.body.scrollHeight,
+    bodyComputed: bodyStyle ? {
+      paddingTop: bodyStyle.paddingTop, marginTop: bodyStyle.marginTop,
+      display: bodyStyle.display, alignItems: bodyStyle.alignItems, justifyContent: bodyStyle.justifyContent
+    } : null,
+    bodyChildren: Array.prototype.slice.call(document.body.children, 0, 8).map(function(el){
+      var b = box(el); if (b) b.cls = String(el.className || '').slice(0, 80); return b;
+    }),
+    main: box(m), mainStyleText: m ? m.getAttribute('style') : null,
+    mainComputed: mainStyle ? {
+      paddingTop: mainStyle.paddingTop, paddingBottom: mainStyle.paddingBottom,
+      marginTop: mainStyle.marginTop, marginBottom: mainStyle.marginBottom,
+      display: mainStyle.display, justifyContent: mainStyle.justifyContent
+    } : null,
+    mainPrev: m && m.previousElementSibling ? box(m.previousElementSibling) : null,
+    mainPrevClass: m && m.previousElementSibling ? String(m.previousElementSibling.className || '').slice(0, 80) : null,
+    first: box(first), firstStyle: first ? first.getAttribute('style') : null,
+    form: box(form),
+    wrap: box(wrap),
+    wrapStyle: wrapStyle ? {
+      display: wrapStyle.display, width: wrapStyle.width, maxWidth: wrapStyle.maxWidth,
+      height: wrapStyle.height, padding: wrapStyle.padding, margin: wrapStyle.margin,
+      flexDirection: wrapStyle.flexDirection, justifyContent: wrapStyle.justifyContent,
+      alignItems: wrapStyle.alignItems, gap: wrapStyle.gap
+    } : null,
+    wrapChildren: wrap ? Array.prototype.slice.call(wrap.children, 0, 8).map(box) : [],
+    children: m ? Array.prototype.slice.call(m.children, 0, 5).map(box) : []
+  });
 })()
 """
 
@@ -206,13 +292,12 @@ fun WebLoginScreen(
         ) {
             AndroidView(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding(),
+                    .fillMaxSize(),
                 factory = { ctx ->
                     InputLoggingWebView(ctx).apply {
                         id = View.generateViewId()
                         webViewHolder.value = this
+                        val isDebuggable = ctx.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         // UA 对齐 Chrome / Via：WebView 默认 UA 带完整设备型号、Build 号和完整内核版本，
@@ -233,10 +318,10 @@ fun WebLoginScreen(
                         // 二次缩放，否则 WebView 会把整页再缩放一次，字号和间距与浏览器不一致。
                         settings.useWideViewPort = true
                         settings.loadWithOverviewMode = false
-                        // 页面已声明 user-scalable=no；保留手势缩放能力但不显示缩放按钮，
-                        // 与浏览器默认行为一致（是否真正可缩放由页面 viewport 决定）。
-                        settings.setSupportZoom(true)
-                        settings.builtInZoomControls = true
+                        // 登录页已声明 user-scalable=no；App 内不再额外允许缩放，
+                        // 避免双指缩放改变文档高度后出现整页上下滚动。
+                        settings.setSupportZoom(false)
+                        settings.builtInZoomControls = false
                         settings.displayZoomControls = false
                         // 字体参数显式固定为 Chrome 默认值，避免 ROM 改写 textZoom / 默认字号
                         settings.textZoom = 100
@@ -266,6 +351,14 @@ fun WebLoginScreen(
                                 pollToken()
                                 // 撑满登录页 main：App 内 html/body 高度塌陷会让表单整体偏高
                                 view?.evaluateJavascript(VIEWPORT_FILL_JS, null)
+                                if (isDebuggable) {
+                                    val target = view
+                                    target?.postDelayed({
+                                        target.evaluateJavascript(VIEWPORT_METRICS_JS) { raw ->
+                                            Log.i("WebLoginMetrics", raw)
+                                        }
+                                    }, 1500)
+                                }
 
                             }
 

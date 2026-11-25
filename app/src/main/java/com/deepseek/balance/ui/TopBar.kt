@@ -26,7 +26,7 @@ internal fun TopBar(
 
     Row(
         modifier = modifier
-            .height(56.dp)
+            .height(UiComponentSize.TopBarHeight)
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { Capsule() },
@@ -43,7 +43,7 @@ internal fun TopBar(
                 highlight = { liquidGlassHighlight() },
                 onDrawSurface = { drawRect(surfaceColor) },
             )
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = UiSpacing.Xl),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

@@ -1,0 +1,29 @@
+{
+  "skill": "compose-ui-consistency-review",
+  "date": "2026-11-26",
+  "mode": "gate",
+  "baseline": "baseline.md v1",
+  "testResult": {
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": {
+      "GlassPlaygroundGeometryTest": "5/5",
+      "AppUiConsistencyGeometryTest": "7/7"
+    }
+  },
+  "coverage": [
+    {"page": "home", "states": "empty + fake usage success", "assertions": "左右 24dp 对称边距", "status": "pass"},
+    {"page": "settings", "states": "empty + scrolled to about", "assertions": "全部已测卡片左右边缘一致", "status": "pass"},
+    {"page": "bottomTabs", "states": "light + dark", "assertions": "两项宽度差 <= 0.5dp", "status": "pass"},
+    {"page": "lab", "states": "expanded + collapsed + dark + fontScale1.3 + 360x640/360x800/411x891", "assertions": "无遮挡、卡片/面板对齐、面板内部左边缘、标题/展开按钮中心线", "status": "pass"}
+  ],
+  "blockedOrNotMeasured": [
+    {"rule": "hasVisualOverflow", "status": "blocked", "reason": "需要 Text.onTextLayout 插桩，本轮未注入"},
+    {"rule": "firstBaseline 精确测量", "status": "blocked", "reason": "需要文本布局插桩；已测外层垂直中心线，不等同于精确基线"},
+    {"rule": "真实余额成功态", "status": "blocked", "reason": "未构造 BalanceResponse fake，余额成功卡未纳入几何测试"},
+    {"rule": "真实多设备", "status": "blocked", "reason": "多尺寸由 requiredSize 模拟可用约束，并非真机矩阵"},
+    {"rule": "人工审美与动效", "status": "skip", "reason": "由 manual-review-checklist.md 交人工评审，不能自动判定"}
+  ]
+}

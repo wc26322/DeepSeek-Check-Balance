@@ -1,0 +1,104 @@
+{
+  "skill": "compose-ui-consistency-review",
+  "mode": "gate",
+  "baseline": "baseline.md v1",
+  "date": "2026-11-26",
+  "page": "lab",
+  "rule": "no_overlap_with_fixed_panel",
+  "expected": "intersectionArea == 0 dp^2; 默认配置下按钮完整位于预览视口内，其余配置允许滚动到达",
+  "severity": "P0",
+  "testSuite": "com.deepseek.balance.ui.GlassPlaygroundGeometryTest",
+  "testResult": "5 tests, 0 failures, 0 errors, 0 skipped",
+  "additionalAssertions": [
+    "cardPanelLeftDeltaDp <= 0.5dp（示例卡片与面板左边缘对齐，全部 5 个配置通过）",
+    "cardPanelRightDeltaDp <= 0.5dp（右边缘对齐，全部 5 个配置通过）"
+  ],
+  "records": [
+    {
+      "config": "360x800dp/light/fontScale1.0",
+      "state": "expanded",
+      "nodePath": "lab:preview:sampleButton vs lab:panel:root",
+      "actual": "overlapArea = 0 dp^2",
+      "unit": "dp",
+      "status": "pass",
+      "skipReason": "",
+      "evidence": {
+        "buttonTopDp": 246.0,
+        "buttonBottomDp": 294.0,
+        "panelTopDp": 435.14285,
+        "panelBottomDp": 677.7143,
+        "buttonFullyInsidePreview": true
+      }
+    },
+    {
+      "config": "360x800dp/light/fontScale1.0",
+      "state": "collapsed",
+      "nodePath": "lab:preview:sampleButton vs lab:panel:root",
+      "actual": "overlapArea = 0 dp^2",
+      "unit": "dp",
+      "status": "pass",
+      "skipReason": "",
+      "evidence": {
+        "buttonTopDp": 246.0,
+        "buttonBottomDp": 294.0,
+        "panelTopDp": 584.0,
+        "panelBottomDp": 677.7143,
+        "buttonFullyInsidePreview": true
+      }
+    },
+    {
+      "config": "360x640dp/light/fontScale1.0",
+      "state": "expanded",
+      "nodePath": "lab:preview:sampleButton vs lab:panel:root",
+      "actual": "overlapArea = 0 dp^2",
+      "unit": "dp",
+      "status": "pass",
+      "skipReason": "",
+      "evidence": {
+        "buttonTopDp": 276.2857,
+        "buttonBottomDp": 324.2857,
+        "panelTopDp": 378.2857,
+        "panelBottomDp": 548.0,
+        "buttonFullyInsidePreview": true
+      }
+    },
+    {
+      "config": "411x891dp/light/fontScale1.0",
+      "state": "expanded",
+      "nodePath": "lab:preview:sampleButton vs lab:panel:root",
+      "actual": "overlapArea = 0 dp^2",
+      "unit": "dp",
+      "status": "pass",
+      "skipReason": "",
+      "evidence": {
+        "buttonTopDp": 200.57143,
+        "buttonBottomDp": 248.57143,
+        "panelTopDp": 439.42856,
+        "panelBottomDp": 723.4286,
+        "buttonFullyInsidePreview": true,
+        "note": "requiredSize 模拟大过设备的可用空间，坐标相对父容器居中，允许出现负值"
+      }
+    },
+    {
+      "config": "360x800dp/light/fontScale1.3",
+      "state": "expanded",
+      "nodePath": "lab:preview:sampleButton vs lab:panel:root",
+      "actual": "overlapArea = 0 dp^2",
+      "unit": "dp",
+      "status": "pass",
+      "skipReason": "",
+      "evidence": {
+        "buttonTopDp": 287.14285,
+        "buttonBottomDp": 335.14285,
+        "panelTopDp": 435.14285,
+        "panelBottomDp": 677.7143,
+        "buttonFullyInsidePreview": true
+      }
+    }
+  ],
+  "notMeasured": [
+    "首页/设置页 fake 数据驱动与几何项",
+    "深色模式矩阵",
+    "折射、模糊、色散、动效与留白等人工审美项"
+  ]
+}

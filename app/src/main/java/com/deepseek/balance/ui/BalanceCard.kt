@@ -1,20 +1,18 @@
 package com.deepseek.balance.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,110 +26,105 @@ internal fun BalanceCard(
     totalCostCny: Double? = null,
     refreshCount: Int = 0,
 ) {
-    Spacer(modifier = Modifier.height(8.dp))
-
     val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
     val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
-
-    // 玻璃底 + 品牌渐变蒙层（官方 onDrawSurface 正规用法）：容器为液态玻璃卡（LiquidCard），
-    // 品牌渐变作为半透明蒙层画在玻璃表面——alpha 保持 0.20/0.28 让光斑折射能透出来
-    val primary = MaterialTheme.colorScheme.primary
     val contentColor = MaterialTheme.colorScheme.onSurface
 
-    LiquidCard(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+    // 外部间距由 MainScreen 统一控制，卡片自身不再携带外部 Spacer
+    LiquidCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .testTag("home:balanceCard:content")
+                .padding(UiSpacing.Xl),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().testTag("home:balanceCard:first"),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "账户总余额",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentColor.copy(alpha = 0.7f),
+                    letterSpacing = 1.sp,
+                )
+                StatusChip(
+                    text = statusText,
+                    color = statusColor,
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
+                    labelColor = contentColor,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(UiSpacing.Sm))
+
+            // 金额滚动：刷新后从 0 过渡到当前值
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = symbol,
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-1).sp,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = contentColor,
+                )
+                AnimatedAmount(
+                    target = totalAmount,
+                    restartKey = refreshCount,
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-1).sp,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = contentColor,
+                )
+            }
+
+            if (grantedBalance.isNotBlank()) {
+                Spacer(modifier = Modifier.height(UiSpacing.Xl))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().testTag("home:balanceCard:stats"),
+                    horizontalArrangement = Arrangement.spacedBy(64.dp),
                 ) {
-                    Text(
-                        text = "账户总余额",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor.copy(alpha = 0.7f),
-                        letterSpacing = 1.sp,
-                    )
-                    StatusChip(
-                        text = statusText,
-                        color = statusColor,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
-                        labelColor = contentColor,
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                // 金额滚动：刷新后从 0 过渡到当前值
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = symbol,
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-1).sp,
-                            fontFeatureSettings = "tnum",
-                        ),
-                        color = contentColor,
-                    )
-                    AnimatedAmount(
-                        target = totalAmount,
+                    BalanceLine(
+                        label = "赠金",
+                        symbol = symbol,
+                        amountTarget = grantedAmount,
                         restartKey = refreshCount,
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-1).sp,
-                            fontFeatureSettings = "tnum",
-                        ),
-                        color = contentColor,
+                        color = contentColor.copy(alpha = 0.85f),
                     )
-                }
-
-                if (grantedBalance.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(64.dp),
-                    ) {
+                    // 总消费：来自用量接口（累计消费），复用 BalanceLine 保证与赠金完全对齐
+                    if (totalCostCny != null) {
                         BalanceLine(
-                            label = "赠金",
+                            label = "总消费",
                             symbol = symbol,
-                            amountTarget = grantedAmount,
+                            amountTarget = totalCostCny,
                             restartKey = refreshCount,
                             color = contentColor.copy(alpha = 0.85f),
                         )
-                        // 总消费：来自用量接口（累计消费），复用 BalanceLine 保证与赠金完全对齐；
-                        // 未配置网页令牌时显示 --（无动画）
-                        if (totalCostCny != null) {
-                            BalanceLine(
-                                label = "总消费",
-                                symbol = symbol,
-                                amountTarget = totalCostCny,
-                                restartKey = refreshCount,
+                    } else {
+                        Column {
+                            Text(
+                                text = "总消费",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = contentColor.copy(alpha = 0.7f),
+                            )
+                            Text(
+                                text = "--",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontFeatureSettings = "tnum",
+                                ),
                                 color = contentColor.copy(alpha = 0.85f),
                             )
-                        } else {
-                            Column {
-                                Text(
-                                    text = "总消费",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = contentColor.copy(alpha = 0.7f),
-                                )
-                                Text(
-                                    text = "--",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = FontWeight.Medium,
-                                        fontFeatureSettings = "tnum",
-                                    ),
-                                    color = contentColor.copy(alpha = 0.85f),
-                                )
-                            }
                         }
                     }
                 }
             }
-    }
 
-    Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
 }
 
 @Preview(showBackground = true)

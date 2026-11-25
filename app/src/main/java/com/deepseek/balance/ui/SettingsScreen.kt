@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -156,51 +157,60 @@ fun SettingsScreen(
         ) {
         // 官方 AndroidLiquidGlass 架构：背景直接透出光斑壁纸，每张卡自己 drawBackdrop 折射（见 LiquidCard.kt）
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 96.dp),
+            modifier = Modifier.fillMaxSize().testTag("settings:list"),
+            contentPadding = PaddingValues(start = UiSpacing.Xxl, top = UiSpacing.Sm, end = UiSpacing.Xxl, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             overscrollEffect = null, // 关闭触顶/触底回弹（overscroll）
         ) {
             item(contentType = "api") {
-                ApiKeyCard(apiKey, onApiKeyChange)
+                Box(Modifier.testTag("settings:card:api")) { ApiKeyCard(apiKey, onApiKeyChange) }
             }
             item(contentType = "webtoken") {
-                WebTokenCard(
-                    webToken = webToken,
-                    onWebTokenChange = onWebTokenChange,
-                    onWebLoginClick = onWebLoginClick,
-                )
+                Box(Modifier.testTag("settings:card:webtoken")) {
+                    WebTokenCard(
+                        webToken = webToken,
+                        onWebTokenChange = onWebTokenChange,
+                        onWebLoginClick = onWebLoginClick,
+                    )
+                }
             }
             item(contentType = "alert") {
-                AlertCard(
-                    enabled = alertEnabled,
-                    onEnabledChange = onAlertEnabledChange,
-                    threshold = alertThreshold,
-                    onThresholdChange = onAlertThresholdChange,
-                )
+                Box(Modifier.testTag("settings:card:alert")) {
+                    AlertCard(
+                        enabled = alertEnabled,
+                        onEnabledChange = onAlertEnabledChange,
+                        threshold = alertThreshold,
+                        onThresholdChange = onAlertThresholdChange,
+                    )
+                }
             }
             item(contentType = "realtime") {
-                RealtimeCard(
-                    enabled = widgetRealtime,
-                    onEnabledChange = onWidgetRealtimeChange,
-                    intervalSec = widgetIntervalSec,
-                    onIntervalSecChange = onWidgetIntervalSecChange,
-                )
+                Box(Modifier.testTag("settings:card:realtime")) {
+                    RealtimeCard(
+                        enabled = widgetRealtime,
+                        onEnabledChange = onWidgetRealtimeChange,
+                        intervalSec = widgetIntervalSec,
+                        onIntervalSecChange = onWidgetIntervalSecChange,
+                    )
+                }
             }
             item(contentType = "background") {
-                BackgroundImageCard(
-                    backgroundImagePath = backgroundImagePath,
-                    onBackgroundImageChange = onBackgroundImageChange,
-                )
+                Box(Modifier.testTag("settings:card:background")) {
+                    BackgroundImageCard(
+                        backgroundImagePath = backgroundImagePath,
+                        onBackgroundImageChange = onBackgroundImageChange,
+                    )
+                }
             }
             item(contentType = "navglass") {
-                NavGlassCard(
-
-                    onOpenDialog = { glassLabOpen = true },
-                )
+                Box(Modifier.testTag("settings:card:navglass")) {
+                    NavGlassCard(
+                        onOpenDialog = { glassLabOpen = true },
+                    )
+                }
             }
             item(contentType = "about") {
-                AboutCard()
+                Box(Modifier.testTag("settings:card:about")) { AboutCard() }
             }
         }
 
@@ -216,7 +226,7 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier.fillMaxWidth(),
 
     ) {
-        Column(modifier = Modifier.padding(20.dp), content = content)
+        Column(modifier = Modifier.padding(UiSpacing.Xl), content = content)
     }
 }
 
@@ -852,7 +862,7 @@ private fun NavGlassDialog(
 
             CompositionLocalProvider(LocalSliderDraggingChanged provides { dialogDragging = it }) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().testTag("settings:navDialog:list"),
                     userScrollEnabled = !dialogDragging,
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -1070,8 +1080,9 @@ internal fun GlassSlider(
     unit: String,
     onChange: (Float) -> Unit,
     onValueChangeFinished: (Float) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
-    Column {
+    Column(modifier = modifier) {
         OptionBox {
             Row(
                 modifier = Modifier.fillMaxWidth(),

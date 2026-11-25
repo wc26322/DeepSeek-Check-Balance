@@ -14,6 +14,7 @@ android {
         targetSdk = 34
         versionCode = 22
         versionName = "1.4.10"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // 网络安全：允许明文传输（仅用于 API 调用）
         vectorDrawables {
@@ -22,6 +23,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 真机保留原有正式包：独立 applicationId 避免签名冲突，不卸载原 App、不清空其数据
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             // 开启 R8 代码优化/压缩 + 资源压缩：显著降低冷启动 JIT 编译量、加快组合与动画
             isMinifyEnabled = true
@@ -105,4 +111,10 @@ dependencies {
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // UI 几何量化测试（compose-ui-consistency-review Skill 的阶段 3）
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

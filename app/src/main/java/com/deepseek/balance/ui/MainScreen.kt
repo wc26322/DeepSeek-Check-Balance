@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+
 import com.deepseek.balance.model.BalanceResponse
 import com.deepseek.balance.model.UsageData
 import kotlinx.coroutines.delay
@@ -131,10 +132,7 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             indicator = {
-                // Expressive 官方 LoadingIndicator：下拉时出现箭头 + 容器，松手后转圈，自带位移/缩放动画
-                // 默认顶对齐会落在悬浮玻璃顶栏（8dp 间距 + 56dp 栏高）覆盖区内，
-                // 下拉时指示器图像被「余额」栏遮挡；整体下移 72dp（栏底 64dp + 8dp 间隙）让其完整露出，
-                // 同时把悬停待加载的位置一并下移到栏下方
+                // M3E 官方下拉指示器（形状/箭头/转圈动画原样）
                 PullToRefreshDefaults.LoadingIndicator(
                     state = pullState,
                     isRefreshing = isLoading,
@@ -238,14 +236,16 @@ fun MainScreen(
 
 @Composable
 private fun LastUpdateText(lastQueryTime: String?) {
+    if (lastQueryTime == null) return
     Text(
-        text = lastQueryTime?.let { "上次更新 $it" } ?: "等待更新…",
+        text = "上次更新 $lastQueryTime",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         modifier = Modifier.fillMaxWidth().testTag("home:lastUpdate"),
         textAlign = TextAlign.Center,
     )
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, widthDp = 360, heightDp = 720)

@@ -42,7 +42,7 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
-import com.kyant.shapes.Capsule
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.deepseek.balance.ui.utils.DampedDragAnimation
 import kotlinx.coroutines.flow.collectLatest
 
@@ -131,7 +131,7 @@ fun LiquidSlider(
         Box(Modifier.layerBackdrop(trackBackdrop)) {
             Box(
                 Modifier
-                    .clip(Capsule())
+                    .clip(RoundedCornerShape(percent = 50))
                     .background(trackColor)
                     .pointerInput(animationScope) {
                         detectTapGestures { position ->
@@ -151,7 +151,7 @@ fun LiquidSlider(
 
             Box(
                 Modifier
-                    .clip(Capsule())
+                    .clip(RoundedCornerShape(percent = 50))
                     .background(accentColor)
                     .height(6f.dp)
                     .layout { measurable, constraints ->
@@ -184,7 +184,7 @@ fun LiquidSlider(
                             }
                         }
                     ),
-                    shape = { Capsule() },
+                    shape = { RoundedCornerShape(percent = 50) },
                     effects = {
                         val progress = dampedDragAnimation.pressProgress
                         blur(8f.dp.toPx() * (1f - progress))

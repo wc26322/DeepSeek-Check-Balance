@@ -1,8 +1,14 @@
 package com.deepseek.balance.ui
 
 import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.draw.clip
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,8 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +38,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,12 +49,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
-import com.kyant.shapes.RoundedRectangle
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +67,7 @@ internal fun GlassPlaygroundPage(
     onNavTuningChange: (NavGlassTuning) -> Unit,
     onBack: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(true) }
+
     var dragging by remember { mutableStateOf(false) }
     val navChange: (NavGlassTuning) -> Unit = {
         onNavTuningChange(it.copy(interactiveDegrade = false))
@@ -90,7 +97,7 @@ internal fun GlassPlaygroundPage(
         ) {
             Column(
                 modifier = Modifier
-                    .then(if (expanded) Modifier.weight(1.2f) else Modifier)
+
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .testTag("lab:preview:root")
@@ -129,29 +136,25 @@ internal fun GlassPlaygroundPage(
                         )
                     }
                 }
+
                 SettingsActionButton(
                     text = "示例玻璃按钮",
                     onClick = {},
                     modifier = Modifier.fillMaxWidth().testTag("lab:preview:sampleButton"),
                 )
             }
-            if (!expanded) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
             GlassLabControlPanel(
                 tuning = tuning,
                 navTuning = navTuning,
-                expanded = expanded,
                 dragging = dragging,
-                onExpandedChange = { expanded = it },
                 onDraggingChange = { dragging = it },
                 onTuningChange = onTuningChange,
                 onTuningCommit = onTuningCommit,
                 onNavTuningChange = navChange,
                 modifier = Modifier
-                    .then(if (expanded) Modifier.weight(1f) else Modifier)
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(start = 24.dp, end = 24.dp, bottom = 92.dp)
+                    .padding(start = UiSpacing.Xxl, end = UiSpacing.Xxl, bottom = 92.dp)
                     .testTag("lab:panel:root"),
             )
         }
@@ -162,9 +165,7 @@ internal fun GlassPlaygroundPage(
 private fun GlassLabControlPanel(
     tuning: LiquidGlassTuning,
     navTuning: NavGlassTuning,
-    expanded: Boolean,
     dragging: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
     onDraggingChange: (Boolean) -> Unit,
     onTuningChange: (LiquidGlassTuning) -> Unit,
     onTuningCommit: (LiquidGlassTuning) -> Unit,
@@ -181,7 +182,7 @@ private fun GlassLabControlPanel(
     Column(
         modifier = modifier.fillMaxWidth().drawBackdrop(
             backdrop = LocalLiquidCardBackdrop.current,
-            shape = { RoundedRectangle(UiRadius.Glass) },
+            shape = { RoundedCornerShape(UiRadius.Glass) },
             effects = {
                 vibrancy()
                 blur(4.dp.toPx())
@@ -194,74 +195,59 @@ private fun GlassLabControlPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = UiSpacing.Lg, end = UiSpacing.Sm, top = UiSpacing.Sm),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(start = UiSpacing.Lg, end = UiSpacing.Sm, top = UiSpacing.Md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "玻璃参数",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.testTag("lab:panel:title"),
             )
+            Spacer(modifier = Modifier.weight(1f))
             TextButton(
-                onClick = { onExpandedChange(!expanded) },
-                modifier = Modifier.testTag("lab:panel:expandButton"),
-            ) {
-                Text(if (expanded) "收起" else "展开")
-                Spacer(modifier = Modifier.width(2.dp))
-                Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-        Text(
-            text = "底部导航栏同样使用当前参数，选中胶囊保持清晰渲染。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = UiSpacing.Lg, end = UiSpacing.Lg, bottom = UiSpacing.Xs).testTag("lab:panel:note"),
-        )
-        if (expanded) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = UiSpacing.Xs),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                TextButton(onClick = { onTuningCommit(LiquidGlassTuning.officialClear()) }) {
-                    Text("官方清透")
-                }
-                TextButton(onClick = {
+                onClick = {
                     onTuningCommit(LiquidGlassTuning())
                     onNavTuningChange(NavGlassTuning())
-                }) {
-                    Text("恢复默认")
-                }
+                },
+                modifier = Modifier.testTag("lab:panel:reset"),
+            ) {
+                Text("重置")
             }
-            CompositionLocalProvider(LocalSliderDraggingChanged provides { onDraggingChange(it) }) {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).testTag("lab:panel:list"),
-                    userScrollEnabled = !dragging,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(UiSpacing.Lg),
-                ) {
-                    item {
-                        GlassLabSectionTitle("全局玻璃材质")
-                    }
-                    item {
+        }
+        GlassLabPresetChip(
+            text = "官方清透",
+            onClick = { onTuningCommit(LiquidGlassTuning.officialClear()) },
+            modifier = Modifier
+                .padding(start = UiSpacing.Lg)
+                .testTag("lab:panel:preset:officialClear"),
+        )
+        CompositionLocalProvider(LocalSliderDraggingChanged provides { onDraggingChange(it) }) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).testTag("lab:panel:list"),
+                userScrollEnabled = !dragging,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(UiSpacing.Lg),
+            ) {
+                item {
+                    GlassLabGroup(
+                        title = "全局玻璃材质",
+                        modifier = Modifier.testTag("lab:panel:group:material"),
+                    ) {
                         GlassSlider(
                             label = "卡片圆角",
-                            modifier = Modifier.testTag("lab:panel:slider:cornerRadius"),
+                            modifier = Modifier
+                                .padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md)
+                                .testTag("lab:panel:slider:cornerRadius"),
                             hint = "只调整卡片圆角，顶栏、按钮和导航保持胶囊形状",
                             value = tuning.cornerRadiusDp,
                             valueRange = 0f..48f,
                             unit = "dp",
                             onChange = { onTuningChange(tuning.copy(cornerRadiusDp = it)) },
                             onValueChangeFinished = { onTuningCommit(tuning.copy(cornerRadiusDp = it)) },
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "背景模糊",
                             hint = "0dp 最清透；过高会降低背景细节",
@@ -270,9 +256,10 @@ private fun GlassLabControlPanel(
                             unit = "dp",
                             onChange = { onTuningChange(tuning.copy(blurDp = it)) },
                             onValueChangeFinished = { onTuningCommit(tuning.copy(blurDp = it)) },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "折射高度",
                             hint = "玻璃边缘的折射带宽",
@@ -281,9 +268,10 @@ private fun GlassLabControlPanel(
                             unit = "dp",
                             onChange = { onTuningChange(tuning.copy(refractionHeightDp = it)) },
                             onValueChangeFinished = { onTuningCommit(tuning.copy(refractionHeightDp = it)) },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "折射强度",
                             hint = "玻璃边缘内容的弯曲程度",
@@ -292,9 +280,10 @@ private fun GlassLabControlPanel(
                             unit = "dp",
                             onChange = { onTuningChange(tuning.copy(refractionAmountDp = it)) },
                             onValueChangeFinished = { onTuningCommit(tuning.copy(refractionAmountDp = it)) },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "表面蒙层",
                             hint = "0% 最透明；复杂背景上可适当提高以保护文字",
@@ -303,43 +292,43 @@ private fun GlassLabControlPanel(
                             unit = "%",
                             onChange = { onTuningChange(tuning.copy(surfaceAlpha = it)) },
                             onValueChangeFinished = { onTuningCommit(tuning.copy(surfaceAlpha = it)) },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassLabToggle(
                             label = "彩色色散",
                             checked = tuning.chromaticAberration,
                             onCheckedChange = { onTuningCommit(tuning.copy(chromaticAberration = it)) },
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassLabToggle(
                             label = "深度效果",
                             checked = tuning.depthEffect,
                             onCheckedChange = { onTuningCommit(tuning.copy(depthEffect = it)) },
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassLabToggle(
                             label = "Vibrancy",
                             checked = tuning.vibrancy,
                             onCheckedChange = { onTuningCommit(tuning.copy(vibrancy = it)) },
                         )
-                    }
-                    if (Build.VERSION.SDK_INT < 33) {
-                        item {
+                        if (Build.VERSION.SDK_INT < 33) {
                             Text(
                                 text = "当前系统不支持完整镜头折射与深度效果，模糊和蒙层仍可调节。",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
-                    item {
-                        GlassLabSectionTitle("导航交互")
-                    }
-                    item {
+                }
+                item {
+                    Spacer(modifier = Modifier.height(UiSpacing.Xxl))
+                    GlassLabGroup(
+                        title = "导航交互",
+                        modifier = Modifier.testTag("lab:panel:group:nav"),
+                    ) {
                         GlassLabToggle(
                             label = "段落震动反馈",
                             checked = navTuning.detentHaptics,
@@ -347,8 +336,7 @@ private fun GlassLabControlPanel(
                                 onNavTuningChange(navTuning.copy(detentHaptics = it, interactiveDegrade = false))
                             },
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "导航栏高度",
                             hint = "只调整导航背景板高度，胶囊和图标保持 56dp",
@@ -359,9 +347,10 @@ private fun GlassLabControlPanel(
                             onValueChangeFinished = {
                                 onNavTuningChange(navTuning.copy(barHeightDp = it, interactiveDegrade = false))
                             },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "按压上下外移",
                             hint = "按住导航胶囊时上下边框的外移量",
@@ -372,9 +361,10 @@ private fun GlassLabControlPanel(
                             onValueChangeFinished = {
                                 onNavTuningChange(navTuning.copy(pressStretchVDp = it, interactiveDegrade = false))
                             },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "按压左右外移",
                             hint = "按住导航胶囊时左右边框的外移量",
@@ -385,9 +375,10 @@ private fun GlassLabControlPanel(
                             onValueChangeFinished = {
                                 onNavTuningChange(navTuning.copy(pressStretchHDp = it, interactiveDegrade = false))
                             },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "切换粘滞强度",
                             hint = "导航拖动时的磁吸档位感",
@@ -398,9 +389,10 @@ private fun GlassLabControlPanel(
                             onValueChangeFinished = {
                                 onNavTuningChange(navTuning.copy(detentStrength = it, interactiveDegrade = false))
                             },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
-                    }
-                    item {
+                        GlassLabDivider()
                         GlassSlider(
                             label = "段落量化",
                             hint = "0 为连续跟手，1 为按档位跳变",
@@ -411,6 +403,8 @@ private fun GlassLabControlPanel(
                             onValueChangeFinished = {
                                 onNavTuningChange(navTuning.copy(detentQuantize = it, interactiveDegrade = false))
                             },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
                         )
                     }
                 }
@@ -420,13 +414,54 @@ private fun GlassLabControlPanel(
 }
 
 @Composable
-private fun GlassLabSectionTitle(text: String) {
+private fun GlassLabGroup(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(UiSpacing.Sm))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(UiSpacing.Xl))
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.10f)),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun GlassLabDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = UiSpacing.Lg),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f),
+    )
+}
+
+@Composable
+private fun GlassLabPresetChip(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Text(
         text = text,
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = UiSpacing.Md, vertical = UiSpacing.Xs),
     )
-    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -438,11 +473,11 @@ private fun GlassLabToggle(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(label, fontSize = 15.sp)
         Spacer(modifier = Modifier.width(16.dp))
         LiquidToggle(
             selected = { checked },

@@ -1081,9 +1081,30 @@ internal fun GlassSlider(
     onChange: (Float) -> Unit,
     onValueChangeFinished: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
+    framed: Boolean = true,
 ) {
     Column(modifier = modifier) {
-        OptionBox {
+        if (framed) {
+            OptionBox { GlassSliderContent(label, hint, value, valueRange, unit, onChange, onValueChangeFinished) }
+        } else {
+            GlassSliderContent(label, hint, value, valueRange, unit, onChange, onValueChangeFinished)
+        }
+    }
+    if (framed) {
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun GlassSliderContent(
+    label: String,
+    hint: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    unit: String,
+    onChange: (Float) -> Unit,
+    onValueChangeFinished: (Float) -> Unit,
+) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1110,9 +1131,7 @@ internal fun GlassSlider(
                 onDraggingChanged = LocalSliderDraggingChanged.current,
                 onValueChangeFinished = onValueChangeFinished,
             )
-        }
-    }
-    Spacer(modifier = Modifier.height(12.dp))
+
 }
 
 @Composable

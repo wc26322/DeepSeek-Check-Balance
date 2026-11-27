@@ -166,20 +166,14 @@ class AppUiConsistencyGeometryTest {
     fun bottomTabs_dark_haveEqualWidthTabs() = assertBottomTabsEqualWidth(true)
 
     @Test
-    fun lab_panelContent_leftAligned_andTitleCenteredWithExpandButton() {
+    fun lab_panelContent_leftAligned() {
         environment {
             GlassPlaygroundPage(LiquidGlassTuning(), NavGlassTuning(), {}, {}, {}, {})
         }
         val title = bounds("lab:panel:title")
-        val note = bounds("lab:panel:note")
-        val firstSlider = bounds("lab:panel:slider:cornerRadius")
-        val expand = bounds("lab:panel:expandButton")
-        Log.i(TAG, "lab title=$title note=$note slider=$firstSlider expand=$expand")
-        assertEquals("面板标题与说明左边缘一致", title.left.value, note.left.value, 0.5f)
-        assertEquals("首个滑块与面板标题左边缘一致", title.left.value, firstSlider.left.value, 0.5f)
-        val titleCenterY = (title.top + title.bottom) / 2
-        val expandCenterY = (expand.top + expand.bottom) / 2
-        assertEquals("标题与展开按钮垂直中心线一致", titleCenterY.value, expandCenterY.value, 1.0f)
+        val group = bounds("lab:panel:group:material")
+        Log.i(TAG, "lab title=$title group=$group")
+        assertEquals("面板标题与分组容器左边缘一致", title.left.value, group.left.value, 0.5f)
     }
 
     @Test

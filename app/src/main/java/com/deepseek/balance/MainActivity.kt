@@ -46,6 +46,7 @@ import com.deepseek.balance.ui.NavGlassTuning
 import com.deepseek.balance.ui.LiquidGlassTuning
 import com.deepseek.balance.ui.LocalLiquidCardBackdrop
 import com.deepseek.balance.ui.LocalLiquidGlassTuning
+import com.deepseek.balance.ui.LocalLiquidGlassTuningState
 import com.deepseek.balance.ui.MainScreen
 import com.deepseek.balance.ui.SettingsScreen
 import com.deepseek.balance.ui.WebLoginScreen
@@ -606,10 +607,12 @@ private fun BalanceAppContent(
             backgroundImagePath = backgroundImage,
             modifier = Modifier.layerBackdrop(ambientBackdrop),
         )
+        android.util.Log.d("TuningDebug", "AppContent corner=${liquidGlassTuning.cornerRadiusDp}")
 
         CompositionLocalProvider(
             LocalLiquidCardBackdrop provides ambientBackdrop,
             LocalLiquidGlassTuning provides liquidGlassTuning,
+            LocalLiquidGlassTuningState provides rememberUpdatedState(liquidGlassTuning),
         ) {
         // ---- 主界面 + 设置页（滑动切换） ----
         // 两屏不录制进任何 backdrop（官方架构：玻璃只折射壁纸层）。

@@ -112,7 +112,7 @@ class GlassPlaygroundGeometryTest {
     }
 
     @Test
-    fun expanded_default_360x800_noOverlap_andButtonFullyVisible() {
+    fun default_default_360x800_noOverlap_andButtonFullyVisible() {
         setLab(DpSize(360.dp, 800.dp))
         val snapshot = snapshot()
         assertNoOverlap(snapshot, "expanded/360x800/font1.0")
@@ -120,31 +120,21 @@ class GlassPlaygroundGeometryTest {
     }
 
     @Test
-    fun expanded_small_360x640_noOverlap_andReachable() {
+    fun default_small_360x640_noOverlap_andReachable() {
         setLab(DpSize(360.dp, 640.dp))
         assertNoOverlap(snapshot(), "expanded/360x640")
         assertVisibleOrReachable("expanded/360x640")
     }
 
     @Test
-    fun expanded_large_411x891_noOverlap_andReachable() {
+    fun default_large_411x891_noOverlap_andReachable() {
         setLab(DpSize(411.dp, 891.dp))
         assertNoOverlap(snapshot(), "expanded/411x891")
         assertVisibleOrReachable("expanded/411x891")
     }
 
     @Test
-    fun collapsed_360x800_noOverlap_andButtonFullyVisible() {
-        setLab(DpSize(360.dp, 800.dp))
-        composeRule.onNodeWithTag("lab:panel:expandButton").performClick()
-        composeRule.waitForIdle()
-        val snapshot = snapshot()
-        assertNoOverlap(snapshot, "collapsed/360x800")
-        assertTrue("收起时示例按钮必须完整可见: $snapshot", snapshot.buttonFullyInsidePreview)
-    }
-
-    @Test
-    fun expanded_fontScale13_noOverlap_andReachable() {
+    fun default_fontScale13_noOverlap_andReachable() {
         setLab(DpSize(360.dp, 800.dp), fontScale = 1.3f)
         assertNoOverlap(snapshot(), "expanded/360x800/font1.3")
         assertVisibleOrReachable("expanded/360x800/font1.3")

@@ -1,11 +1,13 @@
 package com.deepseek.balance.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -13,7 +15,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.RoundedRectangle
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 // 全 app 玻璃共用的 backdrop 录制层：由 MainActivity 在根层录制 AmbientBackground（环境光斑，
 // 官方 BackdropDemoScaffold 中"壁纸"的同角色），并用 CompositionLocalProvider 下发。
@@ -26,7 +28,7 @@ val LocalLiquidCardBackdrop = staticCompositionLocalOf<Backdrop> {
 // ============================================================================
 // 2026-09-26 恢复官方 AndroidLiquidGlass 架构（用户要求参照官方项目）：
 // 每张卡片自己一层 drawBackdrop —— 官方 LazyScrollContainerContent.kt 逐字配方：
-//   drawBackdrop(backdrop, RoundedRectangle(32dp), effects = { vibrancy(); blur(3dp); lens(20dp, 36dp) })
+//   drawBackdrop(backdrop, RoundedCornerShape(32dp), effects = { vibrancy(); blur(3dp); lens(20dp, 36dp) })
 // 官方 demo 用这个配方在 LazyColumn 里滚动 100 张玻璃卡，流畅度经过官方验证。
 // （v1.4.7 曾因 RT 帧耗时改为"整页 GlassPage 单层玻璃板 + 卡片轻量面片"，
 //   代价是卡片失去各自的折射细节；现按用户要求回归官方逐卡玻璃。
@@ -45,24 +47,27 @@ internal fun LiquidCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val tuning = LocalLiquidGlassTuning.current
-    val surfaceColor = liquidGlassSurfaceColor()
+    val tuningState = LocalLiquidGlassTuningState.current
+    val darkTheme = isSystemInDarkTheme()
     Column(
-        modifier.drawBackdrop(
-            backdrop = LocalLiquidCardBackdrop.current,
-            shape = { RoundedRectangle(cornerRadius ?: tuning.cornerRadiusDp.dp) },
-            effects = {
-                if (tuning.vibrancy) vibrancy()
-                blur(tuning.blurDp.dp.toPx())
-                lens(
-                    tuning.refractionHeightDp.dp.toPx(),
-                    tuning.refractionAmountDp.dp.toPx(),
-                    chromaticAberration = tuning.chromaticAberration,
-                    depthEffect = tuning.depthEffect,
-                )
-            },
-            highlight = { liquidGlassHighlight() },
-            onDrawSurface = { drawRect(surfaceColor) },
-        ),
+        modifier
+            .drawBackdrop(
+                backdrop = LocalLiquidCardBackdrop.current,
+                shape = { RoundedCornerShape(cornerRadius ?: tuning.cornerRadiusDp.dp) },
+                effects = {
+                    if (tuning.vibrancy) vibrancy()
+                    blur(tuning.blurDp.dp.toPx())
+                    lens(
+                        tuning.refractionHeightDp.dp.toPx(),
+                        tuning.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = tuning.chromaticAberration,
+                        depthEffect = tuning.depthEffect,
+                    )
+                },
+                highlight = { liquidGlassHighlight() },
+                onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
+            )
+            .forceRelayoutOnRecompose(),
         content = content
     )
 }
@@ -72,24 +77,34 @@ internal fun GlassPage(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 0f.dp,
 ) {
-    val tuning = LocalLiquidGlassTuning.current
-    val surfaceColor = liquidGlassSurfaceColor()
+    val tuningState = LocalLiquidGlassTuningState.current
+    val darkTheme = isSystemInDarkTheme()
     Box(
         modifier.drawBackdrop(
             backdrop = LocalLiquidCardBackdrop.current,
-            shape = { RoundedRectangle(cornerRadius) },
+            shape = { RoundedCornerShape(cornerRadius) },
             effects = {
-                if (tuning.vibrancy) vibrancy()
-                blur(tuning.blurDp.dp.toPx())
+                val t = tuningState.value
+                if (t.vibrancy) vibrancy()
+                blur(t.blurDp.dp.toPx())
                 lens(
-                    tuning.refractionHeightDp.dp.toPx(),
-                    tuning.refractionAmountDp.dp.toPx(),
-                    chromaticAberration = tuning.chromaticAberration,
-                    depthEffect = tuning.depthEffect,
+                    t.refractionHeightDp.dp.toPx(),
+                    t.refractionAmountDp.dp.toPx(),
+                    chromaticAberration = t.chromaticAberration,
+                    depthEffect = t.depthEffect,
                 )
             },
             highlight = { liquidGlassHighlight() },
-            onDrawSurface = { drawRect(surfaceColor) },
+            onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
         )
     )
+}
+/** 强制在重组时触发重新布局：让 drawBackdrop 内部的 placeWithLayer 重新执行，
+ *  从而更新裁剪形状（clip outline 只在 layout 时刷新，重绘不刷新，是圆角残影根因）。
+ *  每次重组 layout lambda 都是新实例 → LayoutModifier 触发 invalidateLayout。 */
+fun Modifier.forceRelayoutOnRecompose(): Modifier = this.layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    layout(placeable.width, placeable.height) {
+        placeable.place(0, 0)
+    }
 }

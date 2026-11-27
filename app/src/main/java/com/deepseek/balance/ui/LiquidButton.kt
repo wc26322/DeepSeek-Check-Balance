@@ -2,6 +2,7 @@ package com.deepseek.balance.ui
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -27,7 +28,7 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.shapes.Capsule
+import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -51,8 +52,8 @@ fun LiquidButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     val animationScope = rememberCoroutineScope()
-    val tuning = LocalLiquidGlassTuning.current
-    val surfaceColor = liquidGlassSurfaceColor()
+    val tuningState = LocalLiquidGlassTuningState.current
+    val darkTheme = isSystemInDarkTheme()
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -64,15 +65,16 @@ fun LiquidButton(
         modifier
             .drawBackdrop(
                 backdrop = LocalLiquidCardBackdrop.current,
-                shape = { Capsule() },
+                shape = { RoundedCornerShape(tuningState.value.cornerRadiusDp.dp) },
                 effects = {
-                    if (tuning.vibrancy) vibrancy()
-                    blur(tuning.blurDp.dp.toPx())
+                    val t = tuningState.value
+                    if (t.vibrancy) vibrancy()
+                    blur(t.blurDp.dp.toPx())
                     lens(
-                        tuning.refractionHeightDp.dp.toPx(),
-                        tuning.refractionAmountDp.dp.toPx(),
-                        chromaticAberration = tuning.chromaticAberration,
-                        depthEffect = tuning.depthEffect,
+                        t.refractionHeightDp.dp.toPx(),
+                        t.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = t.chromaticAberration,
+                        depthEffect = t.depthEffect,
                     )
                 },
                 highlight = { liquidGlassHighlight() },
@@ -104,7 +106,7 @@ fun LiquidButton(
                 } else {
                     null
                 },
-                onDrawSurface = { drawRect(surfaceColor) }
+                onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) }
             )
             .clickable(
                 interactionSource = null,

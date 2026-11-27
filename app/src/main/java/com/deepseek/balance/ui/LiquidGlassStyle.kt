@@ -3,7 +3,9 @@ package com.deepseek.balance.ui
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import com.kyant.backdrop.highlight.Highlight
 
@@ -32,10 +34,20 @@ data class LiquidGlassTuning(
 
 val LocalLiquidGlassTuning = compositionLocalOf { LiquidGlassTuning() }
 
+// snapshot state 驱动版本：引用稳定（rememberUpdatedState 提供），组件只读 State 对象、
+// 在 shape/effects/onDrawSurface lambda 内读 .value —— 调参时组件不重组、drawBackdrop 的
+// shapeProvider 不被替换，从根上消除"旧圆角残影"（与官方 playground 同一驱动方式）。
+val LocalLiquidGlassTuningState = compositionLocalOf<State<LiquidGlassTuning>> { mutableStateOf(LiquidGlassTuning()) }
+
 @Composable
 internal fun liquidGlassSurfaceColor(): Color {
     val tuning = LocalLiquidGlassTuning.current
     val alpha = if (isSystemInDarkTheme()) tuning.surfaceAlpha * 2f / 3f else tuning.surfaceAlpha
+    return Color.White.copy(alpha = alpha)
+}
+
+internal fun liquidGlassSurfaceColorOf(tuning: LiquidGlassTuning, darkTheme: Boolean): Color {
+    val alpha = if (darkTheme) tuning.surfaceAlpha * 2f / 3f else tuning.surfaceAlpha
     return Color.White.copy(alpha = alpha)
 }
 

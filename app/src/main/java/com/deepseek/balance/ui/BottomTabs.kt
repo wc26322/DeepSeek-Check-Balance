@@ -83,7 +83,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
-import com.kyant.shapes.Capsule
+import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -127,7 +127,7 @@ private fun RowScope.LiquidBottomTab(
     val scale = LocalLiquidBottomTabScale.current
     Column(
         modifier
-            .clip(Capsule())
+            .clip(RoundedCornerShape(percent = 50))
             .clickable(
                 interactionSource = null,
                 indication = null,
@@ -173,9 +173,13 @@ internal fun BottomTabs(
         else Color(0xFF0091FF)
     val contentColor =
         if (isLightTheme) Color.Black else Color.White
+    val glassTuningState = LocalLiquidGlassTuningState.current
     val glassTuning = LocalLiquidGlassTuning.current
-    val glassSurfaceColor = liquidGlassSurfaceColor()
+    val darkTheme = isSystemInDarkTheme()
     val tabsBackdrop = rememberLayerBackdrop()
+    android.util.Log.d("TuningDebug", "BottomTabs recompose: glass.corner=${glassTuning.cornerRadiusDp}, state.corner=${glassTuningState.value.cornerRadiusDp}")
+    // 统一圆角在各 shape lambda 内计算（读 glassTuningState.value），不占用函数体读取，
+    // 保证调参时 BottomTabs 不重组、shapeProvider 不被替换（消除旧圆角残影）。
 
     // 层②录制层：只录"纯玻璃底板"（磨砂背景+底色），不含任何图标——
     // 胶囊折射 combined(壁纸, 本层) 后与整条栏材质一致（官方观感），
@@ -335,15 +339,20 @@ internal fun BottomTabs(
                 }
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { Capsule() },
+                    shape = {
+                        android.util.Log.d("TuningDebug", "bg shapeBlock: corner=${glassTuning.cornerRadiusDp}")
+                        val corner = minOf(glassTuning.cornerRadiusDp.dp, 28.dp) +
+                            ((currentTuning.barHeightDp - 56f) / 2f).coerceAtLeast(0f).dp
+                        RoundedCornerShape(corner)
+                    },
                     effects = {
-                        if (glassTuning.vibrancy) vibrancy()
-                        if (!tuning.interactiveDegrade) blur(glassTuning.blurDp.dp.toPx())
+                        if (glassTuningState.value.vibrancy) vibrancy()
+                        if (!tuning.interactiveDegrade) blur(glassTuningState.value.blurDp.dp.toPx())
                         lens(
-                            glassTuning.refractionHeightDp.dp.toPx(),
-                            glassTuning.refractionAmountDp.dp.toPx(),
-                            chromaticAberration = glassTuning.chromaticAberration,
-                            depthEffect = glassTuning.depthEffect,
+                            glassTuningState.value.refractionHeightDp.dp.toPx(),
+                            glassTuningState.value.refractionAmountDp.dp.toPx(),
+                            chromaticAberration = glassTuningState.value.chromaticAberration,
+                            depthEffect = glassTuningState.value.depthEffect,
                         )
                     },
                     highlight = { liquidGlassHighlight() },
@@ -357,7 +366,7 @@ internal fun BottomTabs(
                         scaleX = scale
                         scaleY = scale
                     },
-                    onDrawSurface = { drawRect(glassSurfaceColor) }
+                    onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(glassTuningState.value, darkTheme)) }
                 )
                 .then(interactiveHighlight.modifier)
                 .height(tuning.barHeightDp.dp)
@@ -392,22 +401,24 @@ internal fun BottomTabs(
                     }
                     .drawBackdrop(
                         backdrop = backdrop,
-                        shape = { Capsule() },
+                        shape = {
+                        RoundedCornerShape(minOf(glassTuning.cornerRadiusDp.dp, 28.dp))
+                    },
                         effects = {
                             val progress = safeProgress(dampedDragAnimation.pressProgress)
-                            if (glassTuning.vibrancy) vibrancy()
-                            if (!tuning.interactiveDegrade) blur(glassTuning.blurDp.dp.toPx())
+                            if (glassTuningState.value.vibrancy) vibrancy()
+                            if (!tuning.interactiveDegrade) blur(glassTuningState.value.blurDp.dp.toPx())
                             lens(
-                                glassTuning.refractionHeightDp.dp.toPx() * progress,
-                                glassTuning.refractionAmountDp.dp.toPx() * progress,
-                                depthEffect = glassTuning.depthEffect,
+                                glassTuningState.value.refractionHeightDp.dp.toPx() * progress,
+                                glassTuningState.value.refractionAmountDp.dp.toPx() * progress,
+                                depthEffect = glassTuningState.value.depthEffect,
                             )
                         },
                         highlight = {
                             val progress = safeProgress(dampedDragAnimation.pressProgress)
                             Highlight.Default.copy(alpha = progress)
                         },
-                        onDrawSurface = { drawRect(glassSurfaceColor) },
+                        onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(glassTuningState.value, darkTheme)) },
                     )
                     .then(interactiveHighlight.modifier)
                     .height(56f.dp)
@@ -464,13 +475,15 @@ internal fun BottomTabs(
                 .then(dampedDragAnimation.modifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
-                    shape = { Capsule() },
+                    shape = {
+                        RoundedCornerShape(minOf(glassTuning.cornerRadiusDp.dp, 28.dp))
+                    },
                     effects = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
                         lens(
                             10f.dp.toPx() * progress,
                             14f.dp.toPx() * progress,
-                            chromaticAberration = glassTuning.chromaticAberration,
+                            chromaticAberration = glassTuningState.value.chromaticAberration,
                         )
                     },
                     highlight = {
@@ -510,7 +523,7 @@ internal fun BottomTabs(
                     },
                     onDrawSurface = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        drawRect(glassSurfaceColor, alpha = 1f - progress)
+                        drawRect(liquidGlassSurfaceColorOf(glassTuningState.value, darkTheme), alpha = 1f - progress)
                         drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     }
                 )

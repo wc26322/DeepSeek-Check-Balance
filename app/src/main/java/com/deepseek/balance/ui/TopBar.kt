@@ -1,5 +1,6 @@
 package com.deepseek.balance.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -12,7 +13,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.isRenderEffectSupported
-import com.kyant.shapes.Capsule
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 // 悬浮液态玻璃顶栏：通过 drawBackdrop 折射其下方的滚动内容
 // （设置入口已移至 MainActivity 的悬浮底部标签栏 BottomTabs）
@@ -21,27 +22,28 @@ internal fun TopBar(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
-    val tuning = LocalLiquidGlassTuning.current
-    val surfaceColor = liquidGlassSurfaceColor()
+    val tuningState = LocalLiquidGlassTuningState.current
+    val darkTheme = isSystemInDarkTheme()
 
     Row(
         modifier = modifier
             .height(UiComponentSize.TopBarHeight)
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { Capsule() },
+                shape = { RoundedCornerShape(tuningState.value.cornerRadiusDp.dp) },
                 effects = {
-                    if (tuning.vibrancy) vibrancy()
-                    blur(tuning.blurDp.dp.toPx())
+                    val t = tuningState.value
+                    if (t.vibrancy) vibrancy()
+                    blur(t.blurDp.dp.toPx())
                     lens(
-                        tuning.refractionHeightDp.dp.toPx(),
-                        tuning.refractionAmountDp.dp.toPx(),
-                        chromaticAberration = tuning.chromaticAberration,
-                        depthEffect = tuning.depthEffect,
+                        t.refractionHeightDp.dp.toPx(),
+                        t.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = t.chromaticAberration,
+                        depthEffect = t.depthEffect,
                     )
                 },
                 highlight = { liquidGlassHighlight() },
-                onDrawSurface = { drawRect(surfaceColor) },
+                onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
             )
             .padding(horizontal = UiSpacing.Xl),
         verticalAlignment = Alignment.CenterVertically,

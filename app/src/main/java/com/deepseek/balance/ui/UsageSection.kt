@@ -181,13 +181,13 @@ private fun NoTokenHint(onSettingsClick: () -> Unit) {
             Text(
                 text = "用量明细需要「网页令牌」",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "余额来自 API Key；但累计消费 / 请求数 / Tokens / 按模型 / 按 Key 等用量数据来自网页后台，需要用网页令牌鉴权。",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -222,7 +222,7 @@ private fun TokenExpiredHint(onReLoginClick: () -> Unit) {
             Text(
                 text = "用量数据来自网页后台，令牌过期后无法继续更新。请重新登录以恢复用量查询。",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -247,11 +247,12 @@ private fun UsageOverviewCard(usage: UsageData) {
         modifier = Modifier.fillMaxWidth().testTag("home:usageOverview"),
     ) {
         Column(modifier = Modifier.padding(UiSpacing.Xl)) {
+            val backgroundLuminance = LocalBackdropBackgroundLuminance.current
             Text(
                 text = "用量概览",
                 modifier = Modifier.testTag("home:usageOverview:first"),
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
             )
             Spacer(modifier = Modifier.height(12.dp))
             // 竖排三行：每行 装饰色条 + 标签 + 数值（色条不按比例，仅作色彩点缀区分）
@@ -265,14 +266,14 @@ private fun UsageOverviewCard(usage: UsageData) {
             OverviewBar(
                 label = "30天请求次数",
                 value = formatInt(usage.apiCalls),
-                color = Color(0xFF42A5F5),
+                color = if (backgroundLuminance > 0.5f) Color(0xFF1565C0) else Color(0xFF42A5F5),
             )
             Spacer(modifier = Modifier.height(12.dp))
             OverviewBar(
                 label = "30天 Tokens",
                 modifier = Modifier.testTag("home:usageOverview:last"),
                 value = formatLong(usage.totalTokens),
-                color = Color(0xFF4CAF50),
+                color = if (backgroundLuminance > 0.5f) Color(0xFF2E7D32) else Color(0xFF4CAF50),
             )
         }
     }
@@ -296,7 +297,7 @@ private fun OverviewBar(label: String, value: String, color: Color, modifier: Mo
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = liquidSecondaryContentColor(),
             modifier = Modifier.weight(1f),
         )
         Text(
@@ -346,7 +347,7 @@ private fun UsageListCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -362,14 +363,14 @@ private fun UsageListCard(
                     Text(
                         text = row.primary,
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = LocalContentColor.current,
                     )
                     if (!row.secondary.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = row.secondary,
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            color = liquidSecondaryContentColor().copy(alpha = 0.7f),
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -399,7 +400,7 @@ private fun TokensRow(value: String) {
         Text(
             text = "Tokens",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = liquidSecondaryContentColor(),
         )
         Text(
             text = value,
@@ -407,7 +408,7 @@ private fun TokensRow(value: String) {
                 fontWeight = FontWeight.Medium,
                 fontFeatureSettings = "tnum",
             ),
-            color = MaterialTheme.colorScheme.onSurface,
+            color = LocalContentColor.current,
         )
     }
 }
@@ -425,7 +426,7 @@ private fun StatChip(label: String, value: String) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
@@ -434,7 +435,7 @@ private fun StatChip(label: String, value: String) {
                     fontWeight = FontWeight.Medium,
                     fontFeatureSettings = "tnum",
                 ),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
             )
         }
     }
@@ -559,13 +560,13 @@ private fun DailyUsageCard(
             Text(
                 text = "每日用量",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "所有日期均按 UTC+0 时间显示",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
             )
             Spacer(modifier = Modifier.height(10.dp))
             // 时间维度 + 模型选择并排，奶糖胶囊锚点（浅蓝渐变底 + 渐变圆箭头）
@@ -724,7 +725,7 @@ private fun DailyUsageCard(
                     color = if (loadFailed)
                         MaterialTheme.colorScheme.error
                     else
-                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        liquidSecondaryContentColor(),
                     modifier = Modifier.padding(vertical = 16.dp),
                 )
             }
@@ -771,12 +772,12 @@ private fun CompactDropdownAnchor(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    color = liquidSecondaryContentColor().copy(alpha = 0.8f),
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                     maxLines = 1,
                 )
             }
@@ -811,7 +812,7 @@ private fun CandyDropdownMenuItem(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
         colors = MenuDefaults.itemColors(
-            textColor = if (selected) primary else MaterialTheme.colorScheme.onSurface,
+            textColor = if (selected) primary else LocalContentColor.current,
         ),
         text = {
             Text(
@@ -871,7 +872,7 @@ private fun CustomRangePicker(
                 Text(
                     text = "选择日期范围",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 DateField(
@@ -894,7 +895,7 @@ private fun CustomRangePicker(
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (valid || days == null)
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        liquidSecondaryContentColor()
                     else
                         MaterialTheme.colorScheme.error,
                 )
@@ -966,15 +967,15 @@ private fun DateField(label: String, value: String, onClick: () -> Unit) {
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        color = liquidSecondaryContentColor().copy(alpha = 0.8f),
                     )
                     Text(
                         text = value.ifEmpty { "请选择" },
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (value.isEmpty())
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            liquidSecondaryContentColor().copy(alpha = 0.6f)
                         else
-                            MaterialTheme.colorScheme.onSurface,
+                            LocalContentColor.current,
                     )
                 }
                 Box(
@@ -1067,7 +1068,7 @@ private fun LegendItem(color: Color, label: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = liquidSecondaryContentColor(),
         )
     }
 }
@@ -1082,7 +1083,7 @@ private fun DailyColumnChart(
     progress: Float = 1f,
 ) {
     val gridColor = MaterialTheme.colorScheme.outlineVariant
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val labelColor = liquidSecondaryContentColor()
 
     // 点击反馈：被点击柱子短暂放大（按压感），press 动画 1→0 恢复
     val scope = rememberCoroutineScope()
@@ -1278,7 +1279,7 @@ private fun DayDetail(day: DailyUsage, modifier: Modifier = Modifier) {
                 Text(
                     text = "请求 ${formatInt(day.apiCalls)} · 合计 ${formatLong(day.totalTokens)}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                 )
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -1308,7 +1309,7 @@ private fun DetailItem(label: String, value: Long, color: Color) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
             )
         }
         Spacer(modifier = Modifier.height(2.dp))
@@ -1318,7 +1319,7 @@ private fun DetailItem(label: String, value: Long, color: Color) {
                 fontWeight = FontWeight.Medium,
                 fontFeatureSettings = "tnum",
             ),
-            color = MaterialTheme.colorScheme.onSurface,
+            color = LocalContentColor.current,
         )
     }
 }

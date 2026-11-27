@@ -7,13 +7,12 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,36 +21,31 @@ import java.io.File
 // 有自定义图片 → 显示图片（ContentScale.Crop，官方同款），玻璃卡片折射真壁纸；
 // 未设置 / 解码失败 → 回退默认环境光斑 AmbientBackground。
 // modifier 由调用方挂 layerBackdrop(ambientBackdrop)：无论哪个分支，玻璃卡片折射的都是同一录制层。
+//
+// 位图在 MainActivity 层解码并同时用于亮度图，避免"显示解码一次、采样再解码一次"。
 @Composable
-internal fun AppBackground(
-    backgroundImagePath: String,
-    modifier: Modifier = Modifier
-) {
-    if (backgroundImagePath.isBlank()) {
-        AmbientBackground(modifier)
-        return
-    }
-
-    val context = LocalContext.current
-    // 异步解码：不在主线程解大图；路径变化（换图）时自动重解码
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, backgroundImagePath) {
+internal fun rememberBackgroundBitmap(backgroundImagePath: String): State<ImageBitmap?> =
+    produceState<ImageBitmap?>(initialValue = null, backgroundImagePath) {
         value = withContext(Dispatchers.IO) {
-            decodeBackgroundBitmap(backgroundImagePath)
+            if (backgroundImagePath.isBlank()) null else decodeBackgroundBitmap(backgroundImagePath)
         }
     }
 
-    val current = bitmap
-    if (current != null) {
-        Image(
-            bitmap = current,
-            contentDescription = null,
-            modifier = modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
-    } else {
-        // 加载中 / 解码失败：先显示默认光斑，避免闪黑屏
+@Composable
+internal fun AppBackground(
+    backgroundImage: ImageBitmap?,
+    modifier: Modifier = Modifier,
+) {
+    if (backgroundImage == null) {
         AmbientBackground(modifier)
+        return
     }
+    Image(
+        bitmap = backgroundImage,
+        contentDescription = null,
+        modifier = modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop,
+    )
 }
 
 // 把照片选择器返回的 Uri 复制到 filesDir/backgrounds/（每次用唯一文件名）。

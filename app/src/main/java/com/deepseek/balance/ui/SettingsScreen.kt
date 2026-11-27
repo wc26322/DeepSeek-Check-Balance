@@ -47,8 +47,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -129,9 +133,16 @@ fun SettingsScreen(
         )
         return
     }
+    val topBarTracker = remember { GlassLuminanceTracker() }
+    val topBarLuminanceMap = LocalBackdropLuminanceMap.current
+    val topBarWindowSize = LocalWindowInfo.current.containerSize
+    val topBarContentColor = rememberAdaptiveContentColor(topBarTracker)
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    topBarTracker.bounds = coordinates.boundsInRoot()
+                },
                 title = { Text("设置", fontWeight = FontWeight.Medium) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
@@ -142,8 +153,9 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    // 背景透明：透出环境彩色光斑
                     containerColor = Color.Transparent,
+                    titleContentColor = topBarContentColor,
+                    navigationIconContentColor = topBarContentColor,
                 ),
             )
         },
@@ -212,9 +224,50 @@ fun SettingsScreen(
             item(contentType = "about") {
                 Box(Modifier.testTag("settings:card:about")) { AboutCard() }
             }
+            item(contentType = "diagnostics") {
+                AdaptiveDiagnosticsCard()
+            }
         }
 
         }
+    }
+}
+
+@Composable
+private fun AdaptiveDiagnosticsCard() {
+    val backgroundLuminance = LocalBackdropBackgroundLuminance.current
+    val contentColor = LocalContentColor.current
+    val secondaryColor = liquidSecondaryContentColor()
+    val accentColor = MaterialTheme.colorScheme.primary
+    LiquidCard {
+        Column(
+            modifier = Modifier.padding(UiSpacing.Xl),
+            verticalArrangement = Arrangement.spacedBy(UiSpacing.Sm),
+        ) {
+            Text("自适应诊断", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "背景亮度 ${"%.2f".format(backgroundLuminance)}（亮>0.5 应深字，暗<0.5 应浅字）",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            AdaptiveDiagnosticRow("主文字", contentColor)
+            AdaptiveDiagnosticRow("次文字", secondaryColor)
+            AdaptiveDiagnosticRow("强调", accentColor)
+        }
+    }
+}
+
+@Composable
+private fun AdaptiveDiagnosticRow(label: String, color: Color) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(UiSpacing.Md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = color, modifier = Modifier.width(56.dp))
+        Text(
+            text = String.format("#%08X", color.toArgb()),
+            color = color,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -248,7 +301,7 @@ private fun InfoTip(
         Icon(
             imageVector = Icons.Default.Info,
             contentDescription = "说明",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = liquidSecondaryContentColor(),
             modifier = Modifier.size(15.dp),
         )
     }
@@ -278,7 +331,7 @@ private fun CardTitleWithTip(title: String, tipDescription: String, modifier: Mo
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+            color = LocalContentColor.current,
         )
         Spacer(modifier = Modifier.width(4.dp))
         InfoTip(description = tipDescription, title = title)
@@ -305,8 +358,7 @@ internal fun SettingsActionButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
 ) {
-    val darkTheme = isSystemInDarkTheme()
-    val contentColor = if (darkTheme) Color(0xFFF2F3F5) else Color(0xFF24272C)
+    val contentColor = LocalContentColor.current
     LiquidButton(
         onClick = onClick,
         modifier = modifier,
@@ -396,7 +448,7 @@ private fun ApiKeyCard(apiKey: String, onApiKeyChange: (String) -> Unit) {
             else "选填：不填则通过网页登录查余额",
             style = MaterialTheme.typography.labelSmall,
             color = if (apiKey.isNotBlank()) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            else liquidSecondaryContentColor(),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -473,7 +525,7 @@ private fun WebTokenCard(
             else "登录网页端并一键登录后令牌自动获取",
             style = MaterialTheme.typography.labelSmall,
             color = if (webToken.isNotBlank()) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            else liquidSecondaryContentColor(),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -503,7 +555,7 @@ private fun AlertCard(
                 Text(
                     text = "余额预警",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = LocalContentColor.current,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 InfoTip(
@@ -523,7 +575,7 @@ private fun AlertCard(
             Text(
                 text = "预警金额 (¥)",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -555,7 +607,7 @@ private fun AlertCard(
                 prefix = { Text("¥ ", fontWeight = FontWeight.Medium) },
                 suffix = {
                     if (threshold.isNotBlank()) {
-                        Text("元", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("元", color = liquidSecondaryContentColor())
                     }
                 },
                 shape = MaterialTheme.shapes.medium,
@@ -602,7 +654,7 @@ private fun RealtimeCard(
                 Text(
                     text = "后台实时刷新",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = LocalContentColor.current,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 InfoTip(
@@ -622,7 +674,7 @@ private fun RealtimeCard(
             Text(
                 text = "刷新间隔",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
             )
             Spacer(modifier = Modifier.height(8.dp))
             ExposedDropdownMenuBox(
@@ -880,7 +932,7 @@ private fun NavGlassDialog(
                                 Text(
                                     "全局液态玻璃效果",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onBackground,
+                                    color = LocalContentColor.current,
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 InfoTip(
@@ -892,7 +944,7 @@ private fun NavGlassDialog(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "关闭",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = liquidSecondaryContentColor(),
                                 )
                             }
                         }
@@ -1136,7 +1188,7 @@ private fun GlassSliderContent(
                     else "${value.roundToInt()} $unit",
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = liquidSecondaryContentColor(),
                 )
             }
             LiquidSlider(
@@ -1351,13 +1403,13 @@ private fun AboutCard() {
                 text = versionName.ifBlank { "未知" },
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "当前版本",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = liquidSecondaryContentColor(),
             )
             Spacer(modifier = Modifier.height(24.dp))
             SettingsActionButton(
@@ -1489,13 +1541,13 @@ private fun DownloadDialog(
                 Text(
                     text = "下载更新",
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "DeepSeek 余额查询 v$version",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = liquidSecondaryContentColor(),
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -1535,7 +1587,7 @@ private fun DownloadDialog(
                         Text(
                             text = "下载完成，可以开始安装",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = LocalContentColor.current,
                         )
                         Spacer(modifier = Modifier.height(20.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1568,14 +1620,14 @@ private fun DownloadDialog(
                                 else -> "准备中…"
                             },
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = liquidSecondaryContentColor(),
                         )
                         if (source.isNotBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "下载源：$source",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                color = liquidSecondaryContentColor().copy(alpha = 0.6f),
                             )
                         }
                         Spacer(modifier = Modifier.height(20.dp))
@@ -1591,7 +1643,7 @@ private fun DownloadDialog(
                         Text(
                             text = "选择一个下载源",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = LocalContentColor.current,
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         val allDone = probes.none { it == null }
@@ -1606,7 +1658,7 @@ private fun DownloadDialog(
                             Text(
                                 text = "正在检测各源连通性与速度…",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = liquidSecondaryContentColor(),
                             )
                         } else if (allDone && reachableCount == 0) {
                             Text(
@@ -1636,7 +1688,7 @@ private fun DownloadDialog(
                                         Text(
                                             text = "检测中…",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = liquidSecondaryContentColor(),
                                         )
                                     }
                                 } else {
@@ -1700,8 +1752,8 @@ private fun SourceRow(
             Text(
                 text = probe.host,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                color = if (enabled) LocalContentColor.current
+                else liquidSecondaryContentColor().copy(alpha = 0.5f),
             )
             Text(
                 text = if (enabled) "${probe.speedKBps} KB/s · 点击下载"

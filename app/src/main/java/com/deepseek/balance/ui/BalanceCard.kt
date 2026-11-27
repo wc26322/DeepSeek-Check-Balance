@@ -28,7 +28,7 @@ internal fun BalanceCard(
 ) {
     val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
     val grantedAmount = grantedBalance.toDoubleOrNull() ?: 0.0
-    val contentColor = MaterialTheme.colorScheme.onSurface
+    val contentColor = LocalContentColor.current
 
     // 外部间距由 MainScreen 统一控制，卡片自身不再携带外部 Spacer
     LiquidCard(modifier = Modifier.fillMaxWidth()) {

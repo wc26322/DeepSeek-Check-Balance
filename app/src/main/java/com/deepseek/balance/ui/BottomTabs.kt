@@ -6,6 +6,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -59,9 +60,12 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -171,14 +175,17 @@ internal fun BottomTabs(
     val onTabSelectedIndex: (index: Int) -> Unit = { onTabSelected(it == 1) }
 
     val isLightTheme = !isSystemInDarkTheme()
-    val accentColor =
-        if (isLightTheme) Color(0xFF0088FF)
-        else Color(0xFF0091FF)
-    val contentColor =
-        if (isLightTheme) Color.Black else Color.White
+
+
     val glassTuningState = LocalLiquidGlassTuningState.current
 
     val darkTheme = isSystemInDarkTheme()
+    val luminanceMapState = LocalBackdropLuminanceMap.current
+    val windowSize = LocalWindowInfo.current.containerSize
+    val luminanceTracker = remember { GlassLuminanceTracker() }
+    val backgroundLuminance = rememberGlassLuminanceSample(luminanceTracker)?.luminance ?: (if (isLightTheme) 0.9f else 0.1f)
+    val accentColor = if (backgroundLuminance > 0.5f) Color(0xFF0064D2) else Color(0xFF4DA3FF)
+
     val tabsBackdrop = rememberLayerBackdrop()
 
     // 统一圆角在各 shape lambda 内计算（读 glassTuningState.value），不占用函数体读取，
@@ -190,7 +197,9 @@ internal fun BottomTabs(
 
     key(glassTuningState.value.cornerRadiusDp) {
     BoxWithConstraints(
-        modifier,
+        modifier.onGloballyPositioned { coordinates ->
+            luminanceTracker.bounds = coordinates.boundsInRoot()
+        },
         contentAlignment = Alignment.CenterStart
     ) {
         val density = LocalDensity.current
@@ -331,6 +340,14 @@ internal fun BottomTabs(
         }
 
 
+        val tabContentColor by animateColorAsState(
+            targetValue = if (
+                (rememberGlassLuminanceSample(luminanceTracker)?.luminance ?: (if (isLightTheme) 0.9f else 0.1f)) > 0.5f
+            ) Color.Black else Color.White,
+            animationSpec = tween(500),
+            label = "bottomTabContentColor",
+        )
+
         Row(
             Modifier
                 .graphicsLayer {
@@ -380,12 +397,12 @@ internal fun BottomTabs(
             verticalAlignment = Alignment.CenterVertically,
             content = {
                 LiquidBottomTab(onClick = { onTabSelected(false) }, modifier = Modifier.testTag("nav:bottom:item:home")) {
-                    Icon(Icons.Filled.Home, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
-                    Text("首页", fontSize = 12f.sp, color = contentColor)
+                    Icon(Icons.Filled.Home, contentDescription = null, Modifier.size(28f.dp), tint = tabContentColor)
+                    Text("首页", fontSize = 12f.sp, color = tabContentColor)
                 }
                 LiquidBottomTab(onClick = { onTabSelected(true) }, modifier = Modifier.testTag("nav:bottom:item:settings")) {
-                    Icon(Icons.Filled.Settings, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
-                    Text("设置", fontSize = 12f.sp, color = contentColor)
+                    Icon(Icons.Filled.Settings, contentDescription = null, Modifier.size(28f.dp), tint = tabContentColor)
+                    Text("设置", fontSize = 12f.sp, color = tabContentColor)
                 }
             }
         )

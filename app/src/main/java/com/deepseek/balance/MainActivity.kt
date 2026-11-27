@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -41,6 +42,14 @@ import com.deepseek.balance.model.UsageData
 import com.deepseek.balance.network.ApiClient
 import com.deepseek.balance.network.UsageClient
 import com.deepseek.balance.ui.AppBackground
+import com.deepseek.balance.ui.BackdropLuminanceMap
+import com.deepseek.balance.ui.GlobalAdaptiveGlassTheme
+import com.deepseek.balance.ui.LocalBackdropLuminanceMap
+import com.deepseek.balance.ui.luminanceMapFromAmbient
+import com.deepseek.balance.ui.luminanceMapFromImage
+import com.deepseek.balance.ui.luminanceMapFromPixels
+import com.deepseek.balance.ui.rememberAmbientBackgroundSpec
+import com.deepseek.balance.ui.rememberBackgroundBitmap
 import com.deepseek.balance.ui.BottomTabs
 import com.deepseek.balance.ui.NavGlassTuning
 import com.deepseek.balance.ui.LiquidGlassTuning
@@ -55,10 +64,12 @@ import com.deepseek.balance.widget.BalanceWidgetProvider
 import com.deepseek.balance.widget.WidgetAutoRefreshService
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -349,6 +360,39 @@ private fun BalanceAppContent(
         mutableStateOf(prefs.getString("background_image", "") ?: "")
     }
 
+    val backgroundBitmap by rememberBackgroundBitmap(backgroundImage)
+    val ambientBackgroundSpec = rememberAmbientBackgroundSpec()
+    val windowInfo = LocalWindowInfo.current
+    val windowWidthPx = windowInfo.containerSize.width.toFloat()
+    val windowHeightPx = windowInfo.containerSize.height.toFloat()
+    val backdropLuminanceMap by produceState<BackdropLuminanceMap?>(
+        initialValue = null,
+        backgroundBitmap,
+        ambientBackgroundSpec,
+        windowWidthPx,
+        windowHeightPx,
+    ) {
+        value = if (windowWidthPx <= 0f || windowHeightPx <= 0f) {
+            null
+        } else {
+            val bitmap = backgroundBitmap
+            if (bitmap != null) {
+                withContext(Dispatchers.Default) {
+                    luminanceMapFromImage(bitmap, windowWidthPx, windowHeightPx)
+                }
+            } else {
+                withContext(Dispatchers.Default) {
+                    luminanceMapFromAmbient(
+                        spec = ambientBackgroundSpec,
+                        heightToWidthRatio = windowHeightPx / windowWidthPx,
+                        alphaScale = 1f,
+                    )
+                }
+            }
+        }
+    }
+    val backdropLuminanceMapState = rememberUpdatedState(backdropLuminanceMap)
+
     var liquidGlassTuning by remember {
         val defaults = LiquidGlassTuning()
         mutableStateOf(
@@ -605,7 +649,7 @@ private fun BalanceAppContent(
         // ---- 背景层（最底层，官方"壁纸"角色）：自定义图片或默认光斑 ----
         // 录制修饰符挂在与所有玻璃组件（卡片/底栏）为兄弟关系的背景层上
         AppBackground(
-            backgroundImagePath = backgroundImage,
+            backgroundImage = backgroundBitmap,
             modifier = Modifier.layerBackdrop(ambientBackdrop),
         )
 
@@ -616,6 +660,10 @@ private fun BalanceAppContent(
             LocalLiquidCardBackdrop provides ambientBackdrop,
             LocalLiquidGlassTuning provides liquidGlassTuning,
             LocalLiquidGlassTuningState provides liquidGlassTuningState,
+            LocalBackdropLuminanceMap provides backdropLuminanceMapState,
+        ) {
+        GlobalAdaptiveGlassTheme(
+            backgroundLuminance = backdropLuminanceMap?.let { it.sample(0f, 0f, 1f, 1f).luminance },
         ) {
         // ---- 主界面 + 设置页（滑动切换） ----
         // 两屏不录制进任何 backdrop（官方架构：玻璃只折射壁纸层）。
@@ -713,6 +761,7 @@ private fun BalanceAppContent(
                 )
             }
         }
+        }
         } // CompositionLocalProvider(LocalLiquidCardBackdrop)
 
         // ---- 悬浮底部标签栏（首页/设置）：两屏从其下方滑过 ----
@@ -720,6 +769,7 @@ private fun BalanceAppContent(
         CompositionLocalProvider(
             LocalLiquidGlassTuning provides liquidGlassTuning,
             LocalLiquidGlassTuningState provides liquidGlassTuningState,
+            LocalBackdropLuminanceMap provides backdropLuminanceMapState,
         ) {
             BottomTabs(
                 backdrop = ambientBackdrop,

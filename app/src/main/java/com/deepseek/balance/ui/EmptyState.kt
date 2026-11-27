@@ -31,13 +31,13 @@ internal fun EmptyState(
                 Text(
                     text = "开始使用",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "网页一键登录可同时查看余额与用量明细；也可只填入 API Key 查看余额。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = LocalContentColor.current.copy(alpha = 0.72f),
                     textAlign = TextAlign.Center,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -60,7 +60,7 @@ internal fun EmptyState(
                     ) {
                         Text(
                             text = "填写 API Key",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = LocalContentColor.current.copy(alpha = 0.72f),
                         )
                     }
                 }
@@ -68,13 +68,13 @@ internal fun EmptyState(
                 Text(
                     text = "暂无数据",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = LocalContentColor.current.copy(alpha = 0.72f),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "下拉即可刷新余额与用量",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    color = LocalContentColor.current.copy(alpha = 0.5f),
                 )
             }
         }

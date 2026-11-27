@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,6 +44,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
@@ -73,9 +77,16 @@ internal fun GlassPlaygroundPage(
         onNavTuningChange(it.copy(interactiveDegrade = false))
     }
 
+    val topBarTracker = remember { GlassLuminanceTracker() }
+    val topBarLuminanceMap = LocalBackdropLuminanceMap.current
+    val topBarWindowSize = LocalWindowInfo.current.containerSize
+    val topBarContentColor = rememberAdaptiveContentColor(topBarTracker)
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    topBarTracker.bounds = coordinates.boundsInRoot()
+                },
                 title = { Text("玻璃效果实验室", fontWeight = FontWeight.Medium) },
                 navigationIcon = {
                     IconButton(onClick = {
@@ -85,7 +96,11 @@ internal fun GlassPlaygroundPage(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = topBarContentColor,
+                    navigationIconContentColor = topBarContentColor,
+                ),
             )
         },
         containerColor = Color.Transparent,
@@ -119,20 +134,20 @@ internal fun GlassPlaygroundPage(
                             text = "示例余额卡片",
                             modifier = Modifier.testTag("lab:preview:balanceCard:first"),
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = liquidSecondaryContentColor(),
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "¥ 123.45",
                             style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = LocalContentColor.current,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "圆角、透明度、模糊与折射会实时变化",
                             modifier = Modifier.testTag("lab:preview:balanceCard:last"),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = liquidSecondaryContentColor(),
                         )
                     }
                 }
@@ -173,14 +188,29 @@ private fun GlassLabControlPanel(
 
     modifier: Modifier = Modifier,
 ) {
-    val panelColor = if (isSystemInDarkTheme()) {
+    val luminanceMapState = LocalBackdropLuminanceMap.current
+    val windowSize = LocalWindowInfo.current.containerSize
+    val luminanceTracker = remember { GlassLuminanceTracker() }
+    val luminanceSample = rememberGlassLuminanceSample(luminanceTracker)
+    val backgroundLuminance = luminanceSample?.luminance ?: (if (isSystemInDarkTheme()) 0.1f else 0.9f)
+    val panelIsDark = backgroundLuminance <= 0.5f
+    val panelColor = if (panelIsDark) {
         Color(0xFF15151B).copy(alpha = 0.88f)
     } else {
         Color.White.copy(alpha = 0.86f)
     }
+    val panelContentColor = adaptiveContentColor(backgroundLuminance)
 
+    CompositionLocalProvider(
+        LocalContentColor provides panelContentColor,
+        LocalLiquidSecondaryContentColor provides panelContentColor.copy(alpha = 0.72f),
+    ) {
     Column(
-        modifier = modifier.fillMaxWidth().drawBackdrop(
+        modifier = modifier.fillMaxWidth()
+            .onGloballyPositioned { coordinates ->
+                luminanceTracker.bounds = coordinates.boundsInRoot()
+            }
+            .drawBackdrop(
             backdrop = LocalLiquidCardBackdrop.current,
             shape = { RoundedCornerShape(UiRadius.Glass) },
             effects = {
@@ -202,10 +232,20 @@ private fun GlassLabControlPanel(
                 text = "玻璃参数",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
                 modifier = Modifier.testTag("lab:panel:title"),
             )
             Spacer(modifier = Modifier.weight(1f))
+            luminanceSample?.let { sample ->
+                Text(
+                    text = "背景亮度 ${"%.2f".format(sample.luminance)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = liquidSecondaryContentColor(),
+                    modifier = Modifier
+                        .padding(end = UiSpacing.Sm)
+                        .testTag("lab:panel:backdropLuminance"),
+                )
+            }
             TextButton(
                 onClick = {
                     onTuningCommit(LiquidGlassTuning())
@@ -317,7 +357,7 @@ private fun GlassLabControlPanel(
                             Text(
                                 text = "当前系统不支持完整镜头折射与深度效果，模糊和蒙层仍可调节。",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = liquidSecondaryContentColor(),
                                 modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
                             )
                         }
@@ -426,6 +466,7 @@ private fun GlassLabControlPanel(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -439,7 +480,7 @@ private fun GlassLabGroup(
             text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = liquidSecondaryContentColor(),
         )
         Spacer(modifier = Modifier.height(UiSpacing.Sm))
         Column(

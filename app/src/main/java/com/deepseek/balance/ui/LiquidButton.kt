@@ -128,10 +128,5 @@ fun LiquidButton(
         horizontalArrangement = Arrangement.spacedBy(8f.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
-    ).let { row ->
-        CompositionLocalProvider(
-            LocalContentColor provides MaterialTheme.colorScheme.onSurface,
-            content = { row },
-        )
-    }
+    )
 }

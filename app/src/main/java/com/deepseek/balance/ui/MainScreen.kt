@@ -94,10 +94,14 @@ fun MainScreen(
     val toppedUpBalance = cnyInfo?.toppedUpBalance ?: ""
     val totalAmount = totalBalance.toDoubleOrNull() ?: 0.0
 
+    val backgroundLuminance = LocalBackdropBackgroundLuminance.current
     val (statusText, statusColor) = when {
-        result?.isAvailable != true -> "余额不足" to Color(0xFFFF6666)
-        alertEnabled && totalAmount < alertThreshold -> "低于预警线" to Color(0xFFFFAA00)
-        else -> "可用" to Color(0xFF66FF88)
+        result?.isAvailable != true ->
+            "余额不足" to (if (backgroundLuminance > 0.5f) Color(0xFFC62828) else Color(0xFFFF6666))
+        alertEnabled && totalAmount < alertThreshold ->
+            "低于预警线" to (if (backgroundLuminance > 0.5f) Color(0xFFB26A00) else Color(0xFFAA00))
+        else ->
+            "可用" to (if (backgroundLuminance > 0.5f) Color(0xFF1B8A3A) else Color(0xFF66FF88))
     }
 
     Scaffold(
@@ -108,7 +112,7 @@ fun MainScreen(
                     snackbarData = data,
                     shape = MaterialTheme.shapes.large,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    contentColor = LocalContentColor.current,
                     // 底部悬浮标签栏占据下方约 80dp，提示条上移避免被遮
                     modifier = Modifier.padding(bottom = 88.dp),
                 )
@@ -240,7 +244,7 @@ private fun LastUpdateText(lastQueryTime: String?) {
     Text(
         text = "上次更新 $lastQueryTime",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        color = liquidSecondaryContentColor().copy(alpha = 0.6f),
         modifier = Modifier.fillMaxWidth().testTag("home:lastUpdate"),
         textAlign = TextAlign.Center,
     )

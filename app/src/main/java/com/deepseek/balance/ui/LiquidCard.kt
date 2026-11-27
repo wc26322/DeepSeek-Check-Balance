@@ -1,12 +1,22 @@
 package com.deepseek.balance.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.platform.LocalWindowInfo
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -48,27 +58,59 @@ internal fun LiquidCard(
 ) {
     val tuningState = LocalLiquidGlassTuningState.current
     val darkTheme = isSystemInDarkTheme()
-    Column(
-        modifier
-            .drawBackdrop(
-                backdrop = LocalLiquidCardBackdrop.current,
-                shape = { RoundedCornerShape(cornerRadius ?: tuningState.value.cornerRadiusDp.dp) },
-                effects = {
-                    val t = tuningState.value
-                    if (t.vibrancy) vibrancy()
-                    blur(t.blurDp.dp.toPx())
-                    lens(
-                        t.refractionHeightDp.dp.toPx(),
-                        t.refractionAmountDp.dp.toPx(),
-                        chromaticAberration = t.chromaticAberration,
-                        depthEffect = t.depthEffect,
-                    )
-                },
-                highlight = { liquidGlassHighlight() },
-                onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
-            ),
-        content = content
+    val luminanceMapState = LocalBackdropLuminanceMap.current
+    val windowSize = LocalWindowInfo.current.containerSize
+    val colorScheme = MaterialTheme.colorScheme
+    val luminanceTracker = remember { GlassLuminanceTracker() }
+    val sample = rememberGlassLuminanceSample(luminanceTracker)
+    val fallbackLuminance = if (isSystemInDarkTheme()) 0.1f else 0.9f
+    val contentColor by animateColorAsState(
+        targetValue = adaptiveContentColor(sample?.luminance ?: fallbackLuminance),
+        animationSpec = tween(500),
+        label = "liquidGlassContentColor",
     )
+    val secondaryContentColor = contentColor.copy(alpha = 0.72f)
+
+    MaterialTheme(
+        colorScheme = colorScheme.copy(
+            onSurface = contentColor,
+            onSurfaceVariant = secondaryContentColor,
+            onBackground = contentColor,
+        ),
+        shapes = MaterialTheme.shapes,
+        typography = MaterialTheme.typography,
+        motionScheme = MaterialTheme.motionScheme,
+    ) {
+        CompositionLocalProvider(
+            LocalContentColor provides contentColor,
+            LocalLiquidSecondaryContentColor provides secondaryContentColor,
+        ) {
+            Column(
+                modifier
+                    .onGloballyPositioned { coordinates ->
+                        luminanceTracker.bounds = coordinates.boundsInRoot()
+                    }
+                    .drawBackdrop(
+                        backdrop = LocalLiquidCardBackdrop.current,
+                        shape = { RoundedCornerShape(cornerRadius ?: tuningState.value.cornerRadiusDp.dp) },
+                        effects = {
+                            val t = tuningState.value
+                            if (t.vibrancy) vibrancy()
+                            blur(t.blurDp.dp.toPx())
+                            lens(
+                                t.refractionHeightDp.dp.toPx(),
+                                t.refractionAmountDp.dp.toPx(),
+                                chromaticAberration = t.chromaticAberration,
+                                depthEffect = t.depthEffect,
+                            )
+                        },
+                        highlight = { liquidGlassHighlight() },
+                        onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
+                    ),
+                content = content
+            )
+        }
+    }
 }
 
 @Composable

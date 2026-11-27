@@ -33,6 +33,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -174,7 +175,7 @@ internal fun BottomTabs(
     val contentColor =
         if (isLightTheme) Color.Black else Color.White
     val glassTuningState = LocalLiquidGlassTuningState.current
-    val glassTuning = LocalLiquidGlassTuning.current
+
     val darkTheme = isSystemInDarkTheme()
     val tabsBackdrop = rememberLayerBackdrop()
 
@@ -185,6 +186,7 @@ internal fun BottomTabs(
     // 胶囊折射 combined(壁纸, 本层) 后与整条栏材质一致（官方观感），
     // 且图标不进折射内容，边缘扭曲永远卷不出"图案倒影"。
 
+    key(glassTuningState.value.cornerRadiusDp) {
     BoxWithConstraints(
         modifier,
         contentAlignment = Alignment.CenterStart
@@ -341,7 +343,7 @@ internal fun BottomTabs(
                     backdrop = backdrop,
                     shape = {
 
-                        val corner = minOf(glassTuning.cornerRadiusDp.dp, 28.dp) +
+                        val corner = minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp) +
                             ((currentTuning.barHeightDp - 56f) / 2f).coerceAtLeast(0f).dp
                         RoundedCornerShape(corner)
                     },
@@ -402,7 +404,7 @@ internal fun BottomTabs(
                     .drawBackdrop(
                         backdrop = backdrop,
                         shape = {
-                        RoundedCornerShape(minOf(glassTuning.cornerRadiusDp.dp, 28.dp))
+                        RoundedCornerShape(minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp))
                     },
                         effects = {
                             val progress = safeProgress(dampedDragAnimation.pressProgress)
@@ -476,7 +478,7 @@ internal fun BottomTabs(
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = {
-                        RoundedCornerShape(minOf(glassTuning.cornerRadiusDp.dp, 28.dp))
+                        RoundedCornerShape(minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp))
                     },
                     effects = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
@@ -532,6 +534,7 @@ internal fun BottomTabs(
         )
 
 
+    }
     }
 }
 

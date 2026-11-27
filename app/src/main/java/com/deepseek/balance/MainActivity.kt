@@ -609,10 +609,12 @@ private fun BalanceAppContent(
         )
 
 
+        val liquidGlassTuningState = rememberUpdatedState(liquidGlassTuning)
+
         CompositionLocalProvider(
             LocalLiquidCardBackdrop provides ambientBackdrop,
             LocalLiquidGlassTuning provides liquidGlassTuning,
-            LocalLiquidGlassTuningState provides rememberUpdatedState(liquidGlassTuning),
+            LocalLiquidGlassTuningState provides liquidGlassTuningState,
         ) {
         // ---- 主界面 + 设置页（滑动切换） ----
         // 两屏不录制进任何 backdrop（官方架构：玻璃只折射壁纸层）。
@@ -714,7 +716,10 @@ private fun BalanceAppContent(
 
         // ---- 悬浮底部标签栏（首页/设置）：两屏从其下方滑过 ----
         // 对齐官方：底栏玻璃折射壁纸层（ambientBackdrop），不折射滚动内容
-        CompositionLocalProvider(LocalLiquidGlassTuning provides liquidGlassTuning) {
+        CompositionLocalProvider(
+            LocalLiquidGlassTuning provides liquidGlassTuning,
+            LocalLiquidGlassTuningState provides liquidGlassTuningState,
+        ) {
             BottomTabs(
                 backdrop = ambientBackdrop,
                 isSettings = showSettings,

@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.layout
+
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -46,28 +46,27 @@ internal fun LiquidCard(
     cornerRadius: Dp? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val tuning = LocalLiquidGlassTuning.current
     val tuningState = LocalLiquidGlassTuningState.current
     val darkTheme = isSystemInDarkTheme()
     Column(
         modifier
             .drawBackdrop(
                 backdrop = LocalLiquidCardBackdrop.current,
-                shape = { RoundedCornerShape(cornerRadius ?: tuning.cornerRadiusDp.dp) },
+                shape = { RoundedCornerShape(cornerRadius ?: tuningState.value.cornerRadiusDp.dp) },
                 effects = {
-                    if (tuning.vibrancy) vibrancy()
-                    blur(tuning.blurDp.dp.toPx())
+                    val t = tuningState.value
+                    if (t.vibrancy) vibrancy()
+                    blur(t.blurDp.dp.toPx())
                     lens(
-                        tuning.refractionHeightDp.dp.toPx(),
-                        tuning.refractionAmountDp.dp.toPx(),
-                        chromaticAberration = tuning.chromaticAberration,
-                        depthEffect = tuning.depthEffect,
+                        t.refractionHeightDp.dp.toPx(),
+                        t.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = t.chromaticAberration,
+                        depthEffect = t.depthEffect,
                     )
                 },
                 highlight = { liquidGlassHighlight() },
                 onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
-            )
-            .forceRelayoutOnRecompose(),
+            ),
         content = content
     )
 }
@@ -99,12 +98,4 @@ internal fun GlassPage(
         )
     )
 }
-/** 强制在重组时触发重新布局：让 drawBackdrop 内部的 placeWithLayer 重新执行，
- *  从而更新裁剪形状（clip outline 只在 layout 时刷新，重绘不刷新，是圆角残影根因）。
- *  每次重组 layout lambda 都是新实例 → LayoutModifier 触发 invalidateLayout。 */
-fun Modifier.forceRelayoutOnRecompose(): Modifier = this.layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints)
-    layout(placeable.width, placeable.height) {
-        placeable.place(0, 0)
-    }
-}
+

@@ -111,8 +111,10 @@ internal val LocalLiquidBottomTabScale =
 
 data class NavGlassTuning(
     val barHeightDp: Float = 64f,
-    val pressStretchVDp: Float = 12f,
-    val pressStretchHDp: Float = 6f,
+    val pressScale: Float = 78f / 56f,
+    val pressStretchVDp: Float = 0f,
+    val pressStretchHDp: Float = 0f,
+
     val detentStrength: Float = 0f,
     val detentQuantize: Float = 1f,
     val detentHaptics: Boolean = true,
@@ -237,7 +239,7 @@ internal fun BottomTabs(
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScale = 1.2f,
+                pressedScale = { currentTuning.pressScale },
                 onDragStarted = { _ ->
                     // 手势挂在胶囊自身（官方架构）：按下时胶囊已经在该 tab 位置上，
                     // **没有落位动作**（官方 demo 同款空实现）。
@@ -296,6 +298,7 @@ internal fun BottomTabs(
                 }
             )
         }
+
         LaunchedEffect(selectedTabIndex) {
             snapshotFlow { selectedTabIndex() }
                 .collectLatest { index ->
@@ -428,16 +431,9 @@ internal fun BottomTabs(
                     .padding(horizontal = 4f.dp)
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
                 verticalAlignment = Alignment.CenterVertically,
-                content = {
-                LiquidBottomTab(onClick = { onTabSelected(false) }) {
-                        Icon(Icons.Filled.Home, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
-                        Text("首页", fontSize = 12f.sp, color = contentColor)
-                    }
-                LiquidBottomTab(onClick = { onTabSelected(true) }) {
-                        Icon(Icons.Filled.Settings, contentDescription = null, Modifier.size(28f.dp), tint = contentColor)
-                        Text("设置", fontSize = 12f.sp, color = contentColor)
-                    }
-                },
+                // 方案 B：层②只录纯玻璃底板，不录图标——胶囊折射纯材质，
+                // 高折射强度下不会把「首页/设置」图标扭糊并与原图标叠加
+                content = {},
             )
         }
 
@@ -483,8 +479,8 @@ internal fun BottomTabs(
                     effects = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
                         lens(
-                            10f.dp.toPx() * progress,
-                            14f.dp.toPx() * progress,
+                            glassTuningState.value.refractionHeightDp.dp.toPx() * progress,
+                            glassTuningState.value.refractionAmountDp.dp.toPx() * progress,
                             chromaticAberration = glassTuningState.value.chromaticAberration,
                         )
                     },
@@ -517,11 +513,11 @@ internal fun BottomTabs(
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
                         scaleX = sx / (1f - velocity * 0.75f)
                         scaleY = sy * (1f - velocity * 0.25f)
-                        // 用户要求可调：按住时胶囊边框外移——上下/左右各自在官方果冻按压
-                        // 之上额外拉伸（设置页「按住时上下/左右边框外移」滑块，0=关闭）。
-                        // 外层 graphicsLayer 的 totalSx/totalSy 已按同式补偿，正逆变换精确抵消
+                        // 按住时胶囊边框外移（上下/左右各自可调，0=关闭），
+                        // 与上方 totalSx/totalSy 逐字一致，正逆变换精确抵消
                         scaleX *= lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
                         scaleY *= lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
+
                     },
                     onDrawSurface = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
@@ -531,7 +527,27 @@ internal fun BottomTabs(
                 )
                 .height(56f.dp)
                 .fillMaxWidth(1f / tabsCount)
-        )
+        ) {
+            val tabValue = dampedDragAnimation.value.coerceIn(0f, 1f)
+            Icon(
+                Icons.Filled.Home,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(28.dp)
+                    .align(Alignment.Center)
+                    .alpha(1f - tabValue),
+                tint = accentColor,
+            )
+            Icon(
+                Icons.Filled.Settings,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(28.dp)
+                    .align(Alignment.Center)
+                    .alpha(tabValue),
+                tint = accentColor,
+            )
+        }
 
 
     }

@@ -26,7 +26,7 @@ class DampedDragAnimation(
     val valueRange: ClosedRange<Float>,
     val visibilityThreshold: Float,
     val initialScale: Float,
-    val pressedScale: Float,
+    val pressedScale: () -> Float,
     val onDragStarted: DampedDragAnimation.(position: Offset) -> Unit,
     val onDragStopped: DampedDragAnimation.() -> Unit,
     // 本 app 自定义交互：把拖拽点的局部坐标传出去，供「胶囊中心跟随手指位置」用
@@ -94,8 +94,8 @@ class DampedDragAnimation(
         velocityTracker.resetTracking()
         animationScope.launch {
             launch { pressProgressAnimation.animateTo(1f, pressProgressAnimationSpec) }
-            launch { scaleXAnimation.animateTo(pressedScale, scaleXAnimationSpec) }
-            launch { scaleYAnimation.animateTo(pressedScale, scaleYAnimationSpec) }
+            launch { scaleXAnimation.animateTo(pressedScale(), scaleXAnimationSpec) }
+            launch { scaleYAnimation.animateTo(pressedScale(), scaleYAnimationSpec) }
         }
     }
 

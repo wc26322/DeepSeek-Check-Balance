@@ -352,6 +352,20 @@ private fun GlassLabControlPanel(
                         )
                         GlassLabDivider()
                         GlassSlider(
+                            label = "按压缩放比例",
+                            hint = "按住导航胶囊时的放大倍数，1.0 为不放大",
+                            value = navTuning.pressScale,
+                            valueRange = 1.0f..1.8f,
+                            unit = "x",
+                            onChange = { onNavTuningChange(navTuning.copy(pressScale = it)) },
+                            onValueChangeFinished = {
+                                onNavTuningChange(navTuning.copy(pressScale = it, interactiveDegrade = false))
+                            },
+                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            framed = false,
+                        )
+                        GlassLabDivider()
+                        GlassSlider(
                             label = "按压上下外移",
                             hint = "按住导航胶囊时上下边框的外移量",
                             value = navTuning.pressStretchVDp,
@@ -380,6 +394,7 @@ private fun GlassLabControlPanel(
                         )
                         GlassLabDivider()
                         GlassSlider(
+
                             label = "切换粘滞强度",
                             hint = "导航拖动时的磁吸档位感",
                             value = navTuning.detentStrength,

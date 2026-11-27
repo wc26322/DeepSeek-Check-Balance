@@ -94,7 +94,7 @@ fun LiquidSlider(
                 valueRange = valueRange,
                 visibilityThreshold = visibilityThreshold,
                 initialScale = 1f,
-                pressedScale = 1.5f,
+                pressedScale = { 1.5f },
                 onDragStarted = {
                     // 手势只在滑块本体上（modifier 挂在 knob）→ 按下即锁定页面滚动
                     currentOnDraggingChanged(true)

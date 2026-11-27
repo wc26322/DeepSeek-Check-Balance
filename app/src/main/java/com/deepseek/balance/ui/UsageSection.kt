@@ -84,6 +84,7 @@ internal fun UsageSection(
     usageError: String?,
     hasWebToken: Boolean,
     webTokenInvalid: Boolean = false,
+    showNoTokenHint: Boolean = true,
     onReLoginClick: () -> Unit = {},
     isLoading: Boolean = false,
     onSettingsClick: () -> Unit = {},
@@ -98,7 +99,7 @@ internal fun UsageSection(
         if (webTokenInvalid) {
             Spacer(modifier = Modifier.height(12.dp))
             TokenExpiredHint(onReLoginClick = onReLoginClick)
-        } else if (!hasWebToken) {
+        } else if (!hasWebToken && showNoTokenHint) {
             Spacer(modifier = Modifier.height(12.dp))
             NoTokenHint(onSettingsClick = onSettingsClick)
         }
@@ -113,7 +114,7 @@ internal fun UsageSection(
 
     // 未配置网页令牌
     if (usage == null && !hasWebToken) {
-        NoTokenHint(onSettingsClick = onSettingsClick)
+        if (showNoTokenHint) NoTokenHint(onSettingsClick = onSettingsClick)
         return
     }
 

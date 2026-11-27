@@ -186,7 +186,8 @@ fun MainScreen(
                     if (!hasData) {
                         Box(modifier = Modifier.testTag("home:emptyState")) {
                             EmptyState(
-                                hasKey = hasKey || hasWebToken,
+                                hasCredential = hasKey || hasWebToken,
+                                onWebLoginClick = onWebLoginClick,
                                 onSettingsClick = onSettingsClick,
                             )
                         }
@@ -199,6 +200,7 @@ fun MainScreen(
                             usageError = usageError,
                             hasWebToken = hasWebToken,
                             webTokenInvalid = webTokenInvalid,
+                            showNoTokenHint = hasKey && !hasWebToken,
                             onReLoginClick = onWebLoginClick,
                             isLoading = isLoading,
                             onSettingsClick = onSettingsClick,

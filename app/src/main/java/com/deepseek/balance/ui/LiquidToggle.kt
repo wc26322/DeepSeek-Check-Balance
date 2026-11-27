@@ -83,7 +83,7 @@ fun LiquidToggle(
             valueRange = 0f..1f,
             visibilityThreshold = 0.001f,
             initialScale = 1f,
-            pressedScale = 1.5f,
+            pressedScale = { 1.5f },
             onDragStarted = {},
             onDragStopped = {
                 if (didDrag) {

@@ -829,10 +829,12 @@ private fun NavGlassDialog(
     val cAlpha = rememberStableFloatCallback {
         onGlassTuningChange(glassTuning.copy(surfaceAlpha = it))
     }
-    val cStretchV = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchVDp = it)) }
-    val cStretchH = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchHDp = it)) }
+
     val cDetent = rememberStableFloatCallback { throttledChange(tuning.copy(detentStrength = it)) }
     val cQuant = rememberStableFloatCallback { throttledChange(tuning.copy(detentQuantize = it)) }
+    val cPressScale = rememberStableFloatCallback { throttledChange(tuning.copy(pressScale = it)) }
+    val cStretchV = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchVDp = it)) }
+    val cStretchH = rememberStableFloatCallback { throttledChange(tuning.copy(pressStretchHDp = it)) }
 
     Box(Modifier.fillMaxSize()) {
         // 遮罩层：面板背后的兄弟节点。Compose 命中测试只取最上层兄弟——
@@ -1014,7 +1016,17 @@ private fun NavGlassDialog(
                     }
                     item {
                         GlassSlider(
-                            label = "按住时上下边框外移",
+                            label = "按压缩放比例",
+                            hint = "按住导航胶囊时的放大倍数，1.0 为不放大",
+                            value = tuning.pressScale,
+                            valueRange = 1.0f..1.8f,
+                            unit = "x",
+                            onChange = cPressScale,
+                        )
+                    }
+                    item {
+                        GlassSlider(
+                            label = "按压上下外移",
                             hint = "按住滑块时上下边框外移的幅度，负值=向内收缩",
                             value = tuning.pressStretchVDp,
                             valueRange = -24f..24f,
@@ -1024,7 +1036,7 @@ private fun NavGlassDialog(
                     }
                     item {
                         GlassSlider(
-                            label = "按住时左右边框外移",
+                            label = "按压左右外移",
                             hint = "按住滑块时左右边框外移的幅度，负值=向内收缩",
                             value = tuning.pressStretchHDp,
                             valueRange = -24f..24f,
@@ -1034,6 +1046,7 @@ private fun NavGlassDialog(
                     }
                     item {
                         GlassSlider(
+
                             label = "切换粘滞强度",
                             hint = "磁吸档位感：档位附近拖不动、越过中点弹过去",
                             value = tuning.detentStrength,
@@ -1118,7 +1131,9 @@ private fun GlassSliderContent(
                 }
                 // 实时数值：dp 或百分比
                 Text(
-                    if (unit == "%") "${(value * 100).roundToInt()}%" else "${value.roundToInt()} $unit",
+                    if (unit == "%") "${(value * 100).roundToInt()}%"
+                    else if (unit == "x") "%.2f x".format(java.util.Locale.US, value)
+                    else "${value.roundToInt()} $unit",
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

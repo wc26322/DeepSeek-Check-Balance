@@ -368,8 +368,9 @@ private fun BalanceAppContent(
         mutableStateOf(
             NavGlassTuning(
                 barHeightDp = prefs.getFloat("nav_glass_bar_height", 64f),
-                pressStretchVDp = prefs.getFloat("nav_glass_press_stretch_v", 12f),
-                pressStretchHDp = prefs.getFloat("nav_glass_press_stretch_h", 6f),
+                pressScale = prefs.getFloat("nav_glass_press_scale", 78f / 56f),
+                pressStretchVDp = prefs.getFloat("nav_glass_press_stretch_v2", 0f),
+                pressStretchHDp = prefs.getFloat("nav_glass_press_stretch_h2", 0f),
                 detentStrength = prefs.getFloat("nav_glass_detent", 0f),
                 detentQuantize = prefs.getFloat("nav_glass_detent_quant", 1f),
                 detentHaptics = prefs.getBoolean("nav_glass_detent_haptic", true),
@@ -813,8 +814,9 @@ private fun persistNavGlassTuning(
     val tuning = tuning.copy(interactiveDegrade = false)
     prefs.edit()
         .putFloat("nav_glass_bar_height", tuning.barHeightDp)
-        .putFloat("nav_glass_press_stretch_v", tuning.pressStretchVDp)
-        .putFloat("nav_glass_press_stretch_h", tuning.pressStretchHDp)
+        .putFloat("nav_glass_press_scale", tuning.pressScale)
+        .putFloat("nav_glass_press_stretch_v2", tuning.pressStretchVDp)
+        .putFloat("nav_glass_press_stretch_h2", tuning.pressStretchHDp)
         .putFloat("nav_glass_detent", tuning.detentStrength)
         .putFloat("nav_glass_detent_quant", tuning.detentQuantize)
         .putBoolean("nav_glass_detent_haptic", tuning.detentHaptics)

@@ -11,10 +11,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
-/** 空状态卡片：与「网页令牌」提示同款样式，稳定常驻，不随刷新闪烁 */
+/** 空状态卡片：无凭证时给出「开始使用」主引导（网页登录优先）；有凭证无数据时提示下拉刷新 */
 @Composable
-internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
-    // 外部间距由 MainScreen 统一控制；与「网页令牌」提示同款液态玻璃容器
+internal fun EmptyState(
+    hasCredential: Boolean,
+    onWebLoginClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+) {
+    // 外部间距由 MainScreen 统一控制；与其它卡片同款液态玻璃容器
     LiquidCard(
         modifier = Modifier.fillMaxWidth(),
 
@@ -23,39 +27,53 @@ internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
             modifier = Modifier.padding(UiSpacing.Xl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (!hasKey) {
+            if (!hasCredential) {
                 Text(
-                    text = "查询余额需要「API Key」",
-                    style = MaterialTheme.typography.titleSmall,
+                    text = "开始使用",
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "在设置页填入 API Key，或点「网页一键登录」后即可查询余额；凭证仅加密保存在本机。",
+                    text = "网页一键登录可同时查看余额与用量明细；也可只填入 API Key 查看余额。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                TextButton(onClick = onSettingsClick) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("前往设置")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    LiquidButton(
+                        onClick = onWebLoginClick,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = "网页一键登录",
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    LiquidButton(
+                        onClick = onSettingsClick,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = "填写 API Key",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             } else {
                 Text(
-                    text = "查询余额",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "暂无数据",
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "查看你的 DeepSeek 账户余额",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "下拉即可刷新余额与用量",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
             }
@@ -67,6 +85,6 @@ internal fun EmptyState(hasKey: Boolean, onSettingsClick: () -> Unit) {
 @Composable
 private fun EmptyStatePreview() {
     MaterialTheme {
-        EmptyState(hasKey = false, onSettingsClick = {})
+        EmptyState(hasCredential = false, onWebLoginClick = {}, onSettingsClick = {})
     }
 }

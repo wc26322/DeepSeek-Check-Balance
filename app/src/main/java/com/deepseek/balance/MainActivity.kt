@@ -607,7 +607,7 @@ private fun BalanceAppContent(
             backgroundImagePath = backgroundImage,
             modifier = Modifier.layerBackdrop(ambientBackdrop),
         )
-        android.util.Log.d("TuningDebug", "AppContent corner=${liquidGlassTuning.cornerRadiusDp}")
+
 
         CompositionLocalProvider(
             LocalLiquidCardBackdrop provides ambientBackdrop,

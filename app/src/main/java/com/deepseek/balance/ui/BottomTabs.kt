@@ -177,7 +177,7 @@ internal fun BottomTabs(
     val glassTuning = LocalLiquidGlassTuning.current
     val darkTheme = isSystemInDarkTheme()
     val tabsBackdrop = rememberLayerBackdrop()
-    android.util.Log.d("TuningDebug", "BottomTabs recompose: glass.corner=${glassTuning.cornerRadiusDp}, state.corner=${glassTuningState.value.cornerRadiusDp}")
+
     // 统一圆角在各 shape lambda 内计算（读 glassTuningState.value），不占用函数体读取，
     // 保证调参时 BottomTabs 不重组、shapeProvider 不被替换（消除旧圆角残影）。
 
@@ -340,7 +340,7 @@ internal fun BottomTabs(
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = {
-                        android.util.Log.d("TuningDebug", "bg shapeBlock: corner=${glassTuning.cornerRadiusDp}")
+
                         val corner = minOf(glassTuning.cornerRadiusDp.dp, 28.dp) +
                             ((currentTuning.barHeightDp - 56f) / 2f).coerceAtLeast(0f).dp
                         RoundedCornerShape(corner)

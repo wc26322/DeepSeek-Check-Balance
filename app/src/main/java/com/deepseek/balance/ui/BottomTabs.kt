@@ -428,8 +428,7 @@ internal fun BottomTabs(
                     .then(interactiveHighlight.modifier)
                     .height(56f.dp)
                     .fillMaxWidth()
-                    .padding(horizontal = 4f.dp)
-                    .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
+                    .padding(horizontal = 4f.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 // 方案 B：层②只录纯玻璃底板，不录图标——胶囊折射纯材质，
                 // 高折射强度下不会把「首页/设置」图标扭糊并与原图标叠加

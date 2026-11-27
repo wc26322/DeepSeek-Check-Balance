@@ -76,7 +76,9 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.deepseek.balance.ui.utils.DampedDragAnimation
+import com.deepseek.balance.ui.utils.EllipticalRoundedShape
 import com.deepseek.balance.ui.utils.InteractiveHighlight
+import com.deepseek.balance.ui.utils.uniformAspectLens
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
@@ -114,10 +116,11 @@ internal val LocalLiquidBottomTabScale =
     staticCompositionLocalOf { { 1f } }
 
 data class NavGlassTuning(
-    val barHeightDp: Float = 64f,
-    val pressScale: Float = 78f / 56f,
-    val pressStretchVDp: Float = 0f,
-    val pressStretchHDp: Float = 0f,
+
+    // 默认值 = 用户在真机上调定并确认的偏好（2026-11-28 固化）；「恢复默认」回到这一套
+    val pressScale: Float = 1.3906878f,
+    val pressStretchVDp: Float = 6.3033924f,
+    val pressStretchHDp: Float = 12.355777f,
 
     val detentStrength: Float = 0f,
     val detentQuantize: Float = 1f,
@@ -355,17 +358,17 @@ internal fun BottomTabs(
                     // 基准一致 → 折射内容零错位、无重影），增长量全推向右下；
                     // 此处按同一缩放值反向平移半个增量 → 视觉等效从中心放大（官方原版观感）
                     val progress = safeProgress(dampedDragAnimation.pressProgress)
-                    val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
+                    val scale = lerp(1f, 1f - 16f.dp.toPx() / size.width, progress)
                     translationX = panelOffset - (scale - 1f) * size.width / 2f
                     translationY = -(scale - 1f) * size.height / 2f
                 }
                 .drawBackdrop(
                     backdrop = backdrop,
                     shape = {
-
-                        val corner = minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp) +
-                            ((currentTuning.barHeightDp - 56f) / 2f).coerceAtLeast(0f).dp
-                        RoundedCornerShape(corner)
+                        // 圆角跟随「卡片圆角」滑块，按各自半高物理封顶：背景板(64dp)→32dp、
+                        // 胶囊(56dp)→28dp；与折射着色器的 minDimension/2 clamp 一致，裁切/折射不错位。
+                        // 默认滑块 32 时背景板 32dp、胶囊 28dp，恰为间距 4dp 的同心等距圆角
+                        RoundedCornerShape(minOf(glassTuningState.value.cornerRadiusDp.dp, 32.dp))
                     },
                     effects = {
                         if (glassTuningState.value.vibrancy) vibrancy()
@@ -379,19 +382,20 @@ internal fun BottomTabs(
                     },
                     highlight = { liquidGlassHighlight() },
                     layerBlock = {
-                        // 官方原版：按压时整栏等比放大 16dp（X/Y 同值）。基准必须钉左上角
-                        // （库逆变换 inverseTransformAtTopLeft 只认 Offset.Zero），中心放大的
-                        // 观感由上方外层 graphicsLayer 的平移补偿实现
+                        // 按压时整栏等比缩小 16dp（X/Y 同值，对齐 iOS 官方"背景板略微缩小后退"）。
+                        // 缩小使背景板边框退出胶囊边缘折射带（带视觉宽≈15-17dp），不再被折射吞没；
+                        // 基准必须钉左上角（库逆变换 inverseTransformAtTopLeft 只认 Offset.Zero），
+                        // 中心缩放的观感由上方外层 graphicsLayer 平移补偿实现（scale<1 方向自动正确）
                         transformOrigin = TransformOrigin(0f, 0f)
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        val scale = lerp(1f, 1f + 16f.dp.toPx() / size.width, progress)
+                        val scale = lerp(1f, 1f - 16f.dp.toPx() / size.width, progress)
                         scaleX = scale
                         scaleY = scale
                     },
                     onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(glassTuningState.value, darkTheme)) }
                 )
                 .then(interactiveHighlight.modifier)
-                .height(tuning.barHeightDp.dp)
+                .height(64f.dp)
                 .fillMaxWidth()
                 .padding(vertical = 8f.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -419,33 +423,42 @@ internal fun BottomTabs(
                     .alpha(0f)
                     .layerBackdrop(tabsBackdrop)
                     .graphicsLayer {
-                        translationX = panelOffset
+                        // 与层①逐字一致的按下缩放 + 中心补偿：层②必须成为可见背景板的
+                        // 精确副本（同尺寸、同圆角、同缩放），否则按下时胶囊内折射的"板边"
+                        // （本层若不动）与胶囊外真实板边（层①，等比缩放）错位断层
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
+                        val scale = lerp(1f, 1f - 16f.dp.toPx() / size.width, progress)
+                        translationX = panelOffset - (scale - 1f) * size.width / 2f
+                        translationY = -(scale - 1f) * size.height / 2f
                     }
                     .drawBackdrop(
                         backdrop = backdrop,
                         shape = {
-                        RoundedCornerShape(minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp))
+                        // 与层①一致：跟随卡片圆角滑块，64dp 板半高封顶 32dp
+                        RoundedCornerShape(minOf(glassTuningState.value.cornerRadiusDp.dp, 32.dp))
                     },
+                        // 层②只录纯材质（vibrancy/blur + 蒙层），不录 lens/highlight——
+                        // 否则按下时层②先把壁纸折射一次再录进 tabsBackdrop，胶囊 combined 采样后
+                        // 又折射一次：上下边与靠栏端一侧双重折射、靠栏中一侧单次，四边扭曲量不对称，
+                        // 四角两套色散叠加出彩色双影（此前按下时边缘折射奇怪的根因）
                         effects = {
-                            val progress = safeProgress(dampedDragAnimation.pressProgress)
                             if (glassTuningState.value.vibrancy) vibrancy()
                             if (!tuning.interactiveDegrade) blur(glassTuningState.value.blurDp.dp.toPx())
-                            lens(
-                                glassTuningState.value.refractionHeightDp.dp.toPx() * progress,
-                                glassTuningState.value.refractionAmountDp.dp.toPx() * progress,
-                                depthEffect = glassTuningState.value.depthEffect,
-                            )
                         },
-                        highlight = {
+                        highlight = null,
+                        // 按下缩放与层①逐字一致（基准钉左上角，与库逆变换对齐）
+                        layerBlock = {
+                            transformOrigin = TransformOrigin(0f, 0f)
                             val progress = safeProgress(dampedDragAnimation.pressProgress)
-                            Highlight.Default.copy(alpha = progress)
+                            val scale = lerp(1f, 1f - 16f.dp.toPx() / size.width, progress)
+                            scaleX = scale
+                            scaleY = scale
                         },
                         onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(glassTuningState.value, darkTheme)) },
                     )
                     .then(interactiveHighlight.modifier)
-                    .height(56f.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 4f.dp),
+                    .height(64f.dp)
+                    .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 // 方案 B：层②只录纯玻璃底板，不录图标——胶囊折射纯材质，
                 // 高折射强度下不会把「首页/设置」图标扭糊并与原图标叠加
@@ -467,15 +480,23 @@ internal fun BottomTabs(
                     // 反向平移半个增量 → 视觉等效从中心放大/挤压。
                     // 最终缩放 = 按压弹簧缩放 ∘ 速度形变，须与下方 layerBlock 内的数学逐字一致，
                     // 否则正逆变换抵消不干净又会出现内容错位。
-                    val sx = safeScale(dampedDragAnimation.scaleX)
                     val sy = safeScale(dampedDragAnimation.scaleY)
                     // 速度形变项：取绝对值（左右果冻镜像对称）并夹在 ±0.2；
                     // 非有限值（NaN/Infinity）视为 0，避免把缩放算成 NaN 导致胶囊被压扁/拉伸且不恢复
                     val v = safeVelocity(dampedDragAnimation.velocity)
                     val progress = safeProgress(dampedDragAnimation.pressProgress)
-                    // 最终缩放 = 按压弹簧缩放 ∘ 速度形变 ∘ 按压边框外移（上下/左右，滑块可调），
+                    // 按压净外延四边等距：Y 增量 = (sy-1)×高；X = Y增量 + 背景板横纵缩放差。
+                    // 背景板（层①）按下等比缩小（panelDeltaX 带负号）：水平总变化 -16dp、
+                    // 垂直 -16dp×64/栏宽；胶囊 X 随差值带符号自适应，四边相对背景板净外延一致
+                    // （≈16.6dp）→ 背景板边框退出胶囊折射带（带宽≈15-17dp），完整露出不被吞没
+                    val panelWidth = tabWidth * tabsCount + 8f.dp.toPx()
+                    val panelDeltaX = -16f.dp.toPx()
+                    val panelDeltaY = panelDeltaX * 64f.dp.toPx() / panelWidth
+                    val capsuleDeltaX = (sy - 1f) * size.height + (panelDeltaX - panelDeltaY) * progress
+                    val pressScaleX = 1f + capsuleDeltaX / size.width
+                    // 最终缩放 = 按压等距增量 ∘ 速度形变 ∘ 按压边框外移（上下/左右，滑块可调），
                     // 各项均须与下方 layerBlock 内的数学逐字一致，否则正逆变换抵消不干净会重现重影
-                    val totalSx = sx / (1f - v * 0.75f) *
+                    val totalSx = pressScaleX / (1f - v * 0.75f) *
                         lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / size.width, progress)
                     val totalSy = sy * (1f - v * 0.25f) *
                         lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / size.height, progress)
@@ -490,14 +511,38 @@ internal fun BottomTabs(
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = {
-                        RoundedCornerShape(minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp))
+                        val base = minOf(glassTuningState.value.cornerRadiusDp.dp, 28.dp)
+                        // 目标：按下时圆角形状观感与静止完全一致（全圆角胶囊按下后仍是全圆角）。
+                        // 视觉圆角 R = base×Sy（随高度等比，圆角/高度比例恒定），再用椭圆角预变形
+                        // (R/Sx, R/Sy) 抵消非等比拉伸 → 缩放后 X/Y 都精确等于 R，四角均匀。
+                        // 化简：radiusX = base×Sy/Sx、radiusY = base。
+                        // 缩放公式与 graphicsLayer / layerBlock 逐字一致（size.width=tabWidth、
+                        // size.height=56dp）；UniformAspectLens 已支持椭圆角，裁切与折射带一致
+                        val sy = safeScale(dampedDragAnimation.scaleY)
+                        val v = safeVelocity(dampedDragAnimation.velocity)
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
+                        val capsuleHeight = with(density) { 56f.dp.toPx() }
+                        val panelWidth = tabWidth * tabsCount + with(density) { 8f.dp.toPx() }
+                        val panelDeltaX = with(density) { -16f.dp.toPx() }
+                        val panelDeltaY = panelDeltaX * with(density) { 64f.dp.toPx() } / panelWidth
+                        val capsuleDeltaX = (sy - 1f) * capsuleHeight + (panelDeltaX - panelDeltaY) * progress
+                        val totalSx = ((1f + capsuleDeltaX / tabWidth) / (1f - v * 0.75f) *
+                            lerp(1f, 1f + with(density) { tuning.pressStretchHDp.dp.toPx() } / tabWidth, progress))
+                            .coerceAtLeast(0.05f)
+                        val totalSy = (sy * (1f - v * 0.25f) *
+                            lerp(1f, 1f + with(density) { tuning.pressStretchVDp.dp.toPx() } / capsuleHeight, progress))
+                            .coerceAtLeast(0.05f)
+                        EllipticalRoundedShape(radiusX = base * totalSy / totalSx, radiusY = base)
                     },
                     effects = {
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        lens(
+                        // 各向异性折射：补偿扁长胶囊「上下边相对扭曲 ≈86% vs 左右边 ≈31%」的
+                        // 不一致（库 lens 四边统一像素位移所致），四边相对扭曲率一致
+                        uniformAspectLens(
                             glassTuningState.value.refractionHeightDp.dp.toPx() * progress,
                             glassTuningState.value.refractionAmountDp.dp.toPx() * progress,
                             chromaticAberration = glassTuningState.value.chromaticAberration,
+                            depthEffect = glassTuningState.value.depthEffect,
                         )
                     },
                     highlight = {
@@ -523,11 +568,15 @@ internal fun BottomTabs(
                     layerBlock = {
                         transformOrigin = TransformOrigin(0f, 0f)
                         // 与外层 graphicsLayer 同源的安全化值，数学逐字一致（详见上方注释）
-                        val sx = safeScale(dampedDragAnimation.scaleX)
                         val sy = safeScale(dampedDragAnimation.scaleY)
                         val velocity = safeVelocity(dampedDragAnimation.velocity)
                         val progress = safeProgress(dampedDragAnimation.pressProgress)
-                        scaleX = sx / (1f - velocity * 0.75f)
+                        // X = Y 绝对增量 + 背景板横纵外延差×progress（与上方 graphicsLayer 逐字一致）
+                        val panelWidth = tabWidth * tabsCount + 8f.dp.toPx()
+                        val panelDeltaX = -16f.dp.toPx()
+                        val panelDeltaY = panelDeltaX * 64f.dp.toPx() / panelWidth
+                        val capsuleDeltaX = (sy - 1f) * size.height + (panelDeltaX - panelDeltaY) * progress
+                        scaleX = (1f + capsuleDeltaX / size.width) / (1f - velocity * 0.75f)
                         scaleY = sy * (1f - velocity * 0.25f)
                         // 按住时胶囊边框外移（上下/左右各自可调，0=关闭），
                         // 与上方 totalSx/totalSy 逐字一致，正逆变换精确抵消
@@ -545,24 +594,44 @@ internal fun BottomTabs(
                 .fillMaxWidth(1f / tabsCount)
         ) {
             val tabValue = dampedDragAnimation.value.coerceIn(0f, 1f)
-            Icon(
-                Icons.Filled.Home,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(28.dp)
+            // 选中图标等比补偿：胶囊按压/外移为非等比缩放(Sx≠Sy)，图标直接绘制会被拉变形。
+            // 补偿 scaleX = Sy/Sx（Y 不动）→ 图标净缩放 = (Sy, Sy) 等比：与胶囊高度同步放大、
+            // 比例始终正常。公式与胶囊 layerBlock 逐字一致（含速度果冻与用户外移参数）
+            Box(
+                Modifier
                     .align(Alignment.Center)
-                    .alpha(1f - tabValue),
-                tint = accentColor,
-            )
-            Icon(
-                Icons.Filled.Settings,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(28.dp)
-                    .align(Alignment.Center)
-                    .alpha(tabValue),
-                tint = accentColor,
-            )
+                    .graphicsLayer {
+                        val sy = safeScale(dampedDragAnimation.scaleY)
+                        val v = safeVelocity(dampedDragAnimation.velocity)
+                        val progress = safeProgress(dampedDragAnimation.pressProgress)
+                        val capsuleHeight = 56f.dp.toPx()
+                        val panelWidth = tabWidth * tabsCount + 8f.dp.toPx()
+                        val panelDeltaX = -16f.dp.toPx()
+                        val panelDeltaY = panelDeltaX * 64f.dp.toPx() / panelWidth
+                        val capsuleDeltaX = (sy - 1f) * capsuleHeight + (panelDeltaX - panelDeltaY) * progress
+                        val totalSx = ((1f + capsuleDeltaX / tabWidth) / (1f - v * 0.75f) *
+                            lerp(1f, 1f + tuning.pressStretchHDp.dp.toPx() / tabWidth, progress))
+                            .coerceAtLeast(0.05f)
+                        val totalSy = (sy * (1f - v * 0.25f) *
+                            lerp(1f, 1f + tuning.pressStretchVDp.dp.toPx() / capsuleHeight, progress))
+                            .coerceAtLeast(0.05f)
+                        scaleX = totalSy / totalSx
+                        scaleY = 1f
+                    }
+            ) {
+                Icon(
+                    Icons.Filled.Home,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp).alpha(1f - tabValue),
+                    tint = accentColor,
+                )
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp).alpha(tabValue),
+                    tint = accentColor,
+                )
+            }
         }
 
 

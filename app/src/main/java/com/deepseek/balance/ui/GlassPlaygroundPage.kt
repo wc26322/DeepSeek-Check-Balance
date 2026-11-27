@@ -279,7 +279,7 @@ private fun GlassLabControlPanel(
                             modifier = Modifier
                                 .padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md)
                                 .testTag("lab:panel:slider:cornerRadius"),
-                            hint = "只调整卡片圆角，顶栏、按钮和导航保持胶囊形状",
+                            hint = "调整卡片和导航栏圆角（导航按各自半高封顶：背景板 32dp、胶囊 28dp），顶栏和按钮保持胶囊形状",
                             value = tuning.cornerRadiusDp,
                             valueRange = 0f..48f,
                             unit = "dp",
@@ -378,20 +378,7 @@ private fun GlassLabControlPanel(
                         )
                         GlassLabDivider()
                         GlassSlider(
-                            label = "导航栏高度",
-                            hint = "只调整导航背景板高度，胶囊和图标保持 56dp",
-                            value = navTuning.barHeightDp,
-                            valueRange = 60f..104f,
-                            unit = "dp",
-                            onChange = { onNavTuningChange(navTuning.copy(barHeightDp = it)) },
-                            onValueChangeFinished = {
-                                onNavTuningChange(navTuning.copy(barHeightDp = it, interactiveDegrade = false))
-                            },
-                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
-                            framed = false,
-                        )
-                        GlassLabDivider()
-                        GlassSlider(
+
                             label = "按压缩放比例",
                             hint = "按住导航胶囊时的放大倍数，1.0 为不放大",
                             value = navTuning.pressScale,

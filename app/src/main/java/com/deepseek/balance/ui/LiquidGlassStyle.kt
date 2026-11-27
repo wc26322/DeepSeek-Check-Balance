@@ -23,15 +23,16 @@ import androidx.compose.ui.unit.IntSize
 import com.kyant.backdrop.highlight.Highlight
 import kotlin.math.round
 
+// 默认值 = 用户在真机上调定并确认的偏好（2026-11-28 固化）；「恢复默认」回到这一套
 @Immutable
 data class LiquidGlassTuning(
-    val blurDp: Float = 2f,
-    val refractionHeightDp: Float = 12f,
-    val refractionAmountDp: Float = 24f,
-    val surfaceAlpha: Float = 0.06f,
+    val blurDp: Float = 4.405053f,
+    val refractionHeightDp: Float = 11.653835f,
+    val refractionAmountDp: Float = 18.431108f,
+    val surfaceAlpha: Float = 0f,
     val chromaticAberration: Boolean = true,
-    val cornerRadiusDp: Float = 32f,
-    val depthEffect: Boolean = false,
+    val cornerRadiusDp: Float = 48f,
+    val depthEffect: Boolean = true,
     val vibrancy: Boolean = true,
 ) {
     companion object {

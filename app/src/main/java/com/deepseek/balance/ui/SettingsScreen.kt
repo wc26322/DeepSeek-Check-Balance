@@ -52,7 +52,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toArgb
+
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -224,9 +224,7 @@ fun SettingsScreen(
             item(contentType = "about") {
                 Box(Modifier.testTag("settings:card:about")) { AboutCard() }
             }
-            item(contentType = "diagnostics") {
-                AdaptiveDiagnosticsCard()
-            }
+
         }
 
         }
@@ -234,44 +232,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun AdaptiveDiagnosticsCard() {
-    val backgroundLuminance = LocalBackdropBackgroundLuminance.current
-    val contentColor = LocalContentColor.current
-    val secondaryColor = liquidSecondaryContentColor()
-    val accentColor = MaterialTheme.colorScheme.primary
-    LiquidCard {
-        Column(
-            modifier = Modifier.padding(UiSpacing.Xl),
-            verticalArrangement = Arrangement.spacedBy(UiSpacing.Sm),
-        ) {
-            Text("自适应诊断", style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = "背景亮度 ${"%.2f".format(backgroundLuminance)}（亮>0.5 应深字，暗<0.5 应浅字）",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            AdaptiveDiagnosticRow("主文字", contentColor)
-            AdaptiveDiagnosticRow("次文字", secondaryColor)
-            AdaptiveDiagnosticRow("强调", accentColor)
-        }
-    }
-}
 
-@Composable
-private fun AdaptiveDiagnosticRow(label: String, color: Color) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(UiSpacing.Md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, color = color, modifier = Modifier.width(56.dp))
-        Text(
-            text = String.format("#%08X", color.toArgb()),
-            color = color,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     // 官方玻璃卡容器（LiquidCard = LazyScrollContainerContent 配方 + LiquidButton 的 surfaceColor）。
     // surfaceColor 半透明叠在玻璃表面：保留原 surfaceContainerLowest 的可读性，又透出光斑折射。
@@ -868,7 +829,7 @@ private fun NavGlassDialog(
         onGlassTuningChange(glassTuning.copy(chromaticAberration = it))
     }
     val cHaptics = rememberStableBoolCallback { throttledChange(tuning.copy(detentHaptics = it)) }
-    val cHeight = rememberStableFloatCallback { throttledChange(tuning.copy(barHeightDp = it)) }
+
     val cRefrH = rememberStableFloatCallback {
         onGlassTuningChange(glassTuning.copy(refractionHeightDp = it))
     }
@@ -1058,16 +1019,7 @@ private fun NavGlassDialog(
                     }
                     item {
                         GlassSlider(
-                            label = "导航栏高度",
-                            hint = "只调整底部导航背景板高度；胶囊、图标和手势层保持 56dp。默认 64dp",
-                            value = tuning.barHeightDp,
-                            valueRange = 60f..104f,
-                            unit = "dp",
-                            onChange = cHeight,
-                        )
-                    }
-                    item {
-                        GlassSlider(
+
                             label = "按压缩放比例",
                             hint = "按住导航胶囊时的放大倍数，1.0 为不放大",
                             value = tuning.pressScale,

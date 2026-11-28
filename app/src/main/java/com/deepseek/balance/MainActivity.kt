@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -42,9 +43,16 @@ import com.deepseek.balance.model.UsageData
 import com.deepseek.balance.network.ApiClient
 import com.deepseek.balance.network.UsageClient
 import com.deepseek.balance.ui.AppBackground
+import com.deepseek.balance.ui.ADAPTIVE_MAX_BRIGHT_THRESHOLD
+import com.deepseek.balance.ui.ADAPTIVE_MAX_TEXT_FLIP
+import com.deepseek.balance.ui.ADAPTIVE_MIN_BRIGHT_THRESHOLD
+import com.deepseek.balance.ui.ADAPTIVE_MIN_TEXT_FLIP
 import com.deepseek.balance.ui.BackdropLuminanceMap
+import com.deepseek.balance.ui.BACKGROUND_PREVIEW_MAX_DIM
+import com.deepseek.balance.ui.GlassSamplingOrigin
 import com.deepseek.balance.ui.GlobalAdaptiveGlassTheme
 import com.deepseek.balance.ui.LocalBackdropLuminanceMap
+import com.deepseek.balance.ui.LocalGlassSamplingOrigin
 import com.deepseek.balance.ui.luminanceMapFromAmbient
 import com.deepseek.balance.ui.luminanceMapFromImage
 import com.deepseek.balance.ui.luminanceMapFromPixels
@@ -365,8 +373,40 @@ private fun BalanceAppContent(
     val windowInfo = LocalWindowInfo.current
     val windowWidthPx = windowInfo.containerSize.width.toFloat()
     val windowHeightPx = windowInfo.containerSize.height.toFloat()
+    // 持久化窗口尺寸：首帧组合时 containerSize 常为 0，亮度图无法计算 → 卡片只能按兜底
+    // 亮度画几帧再纠正。用上次运行的尺寸做同步种子，冷启动首帧就能得到（近似相同的）亮度图。
+    val lastWindowWidth = remember { prefs.getInt("last_window_width", 0) }
+    val lastWindowHeight = remember { prefs.getInt("last_window_height", 0) }
+    LaunchedEffect(windowWidthPx, windowHeightPx) {
+        val width = windowWidthPx.toInt()
+        val height = windowHeightPx.toInt()
+        if (width > 0 && height > 0 && (width != lastWindowWidth || height != lastWindowHeight)) {
+            prefs.edit()
+                .putInt("last_window_width", width)
+                .putInt("last_window_height", height)
+                .apply()
+        }
+    }
+    val seedWidthPx = if (windowWidthPx > 0f) windowWidthPx else lastWindowWidth.toFloat()
+    val seedHeightPx = if (windowHeightPx > 0f) windowHeightPx else lastWindowHeight.toFloat()
+    // 同步种子：光斑是纯数学（微秒级），壁纸预览图 ≤320px 也很便宜；全尺寸壁纸太重，
+    // 留给下面的异步 producer（种子为 null 时 producer 结果会无缝接上）。
+    val seededLuminanceMap = remember(backgroundBitmap, ambientBackgroundSpec, seedWidthPx, seedHeightPx) {
+        val bitmap = backgroundBitmap
+        when {
+            seedWidthPx <= 0f || seedHeightPx <= 0f -> null
+            bitmap == null -> luminanceMapFromAmbient(
+                spec = ambientBackgroundSpec,
+                heightToWidthRatio = seedHeightPx / seedWidthPx,
+                alphaScale = 1f,
+            )
+            bitmap.width <= BACKGROUND_PREVIEW_MAX_DIM * 2 ->
+                luminanceMapFromImage(bitmap, seedWidthPx, seedHeightPx)
+            else -> null
+        }
+    }
     val backdropLuminanceMap by produceState<BackdropLuminanceMap?>(
-        initialValue = null,
+        initialValue = seededLuminanceMap,
         backgroundBitmap,
         ambientBackgroundSpec,
         windowWidthPx,
@@ -405,6 +445,20 @@ private fun BalanceAppContent(
                 cornerRadiusDp = prefs.getGlassFloat("liquid_glass_corner_radius", defaults.cornerRadiusDp, 0f, 48f),
                 depthEffect = prefs.getBoolean("liquid_glass_depth", defaults.depthEffect),
                 vibrancy = prefs.getBoolean("liquid_glass_vibrancy", defaults.vibrancy),
+                adaptiveLuminance = prefs.getGlassFloat("liquid_glass_adaptive", defaults.adaptiveLuminance, 0f, 1f),
+                adaptiveEnabled = prefs.getBoolean("liquid_glass_adaptive_enabled", defaults.adaptiveEnabled),
+                adaptiveThreshold = prefs.getGlassFloat(
+                    "liquid_glass_adaptive_bright_threshold",
+                    defaults.adaptiveThreshold,
+                    ADAPTIVE_MIN_BRIGHT_THRESHOLD,
+                    ADAPTIVE_MAX_BRIGHT_THRESHOLD,
+                ),
+                textFlipThreshold = prefs.getGlassFloat(
+                    "liquid_glass_text_flip",
+                    defaults.textFlipThreshold,
+                    ADAPTIVE_MIN_TEXT_FLIP,
+                    ADAPTIVE_MAX_TEXT_FLIP,
+                ),
             )
         )
     }
@@ -642,6 +696,11 @@ private fun BalanceAppContent(
     val ambientBackdrop = rememberLayerBackdrop()
 
     // 两屏始终在组合树中，通过 graphicsLayer 位移驱动平滑滑动
+    // 每屏各下发一个取样坐标系原点（挂在位移层内部的页面容器上）：卡片据此按「页面坐标」
+    // 取样，整页滑动位移不参与计算 —— 自适应值在首次布局时就已确定，切页全程不再重算
+    // （否则设置页离屏坐标会被亮度图 clamp 到屏幕边缘列，切完才跑回真值）。
+    val mainPageOrigin = remember { GlassSamplingOrigin() }
+    val settingsPageOrigin = remember { GlassSamplingOrigin() }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -682,26 +741,35 @@ private fun BalanceAppContent(
                         translationX = -animProgress * size.width.toFloat()
                     },
             ) {
-                MainScreen(
-                    apiKey = apiKey,
-                    onSettingsClick = { showSettings = true },
-                    onQueryClick = onQueryClick,
-                    isLoading = isLoading,
-                    result = result,
-                    errorMessage = errorMessage,
-                    lastQueryTime = lastQueryTime,
-                    usage = usage,
-                    usageError = usageError,
-                    hasWebToken = webToken.isNotBlank(),
-                    webTokenInvalid = webTokenInvalid,
-                    onWebLoginClick = { showWebLogin = true },
-                    loadRangeDaily = loadRangeDaily,
-                    alertEnabled = alertEnabled,
-                    alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
-                    settingsVisible = showSettings,
-                    refreshCount = refreshCount,
-                    dataUpdatedTick = dataUpdatedTick,
-                )
+                // 位移层内部再套一层页面容器：卡片以它为坐标原点取样，滑动位移不参与
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { mainPageOrigin.coordinates = it }
+                ) {
+                    CompositionLocalProvider(LocalGlassSamplingOrigin provides mainPageOrigin) {
+                        MainScreen(
+                            apiKey = apiKey,
+                            onSettingsClick = { showSettings = true },
+                            onQueryClick = onQueryClick,
+                            isLoading = isLoading,
+                            result = result,
+                            errorMessage = errorMessage,
+                            lastQueryTime = lastQueryTime,
+                            usage = usage,
+                            usageError = usageError,
+                            hasWebToken = webToken.isNotBlank(),
+                            webTokenInvalid = webTokenInvalid,
+                            onWebLoginClick = { showWebLogin = true },
+                            loadRangeDaily = loadRangeDaily,
+                            alertEnabled = alertEnabled,
+                            alertThreshold = alertThreshold.toDoubleOrNull() ?: 50.0,
+                            settingsVisible = showSettings,
+                            refreshCount = refreshCount,
+                            dataUpdatedTick = dataUpdatedTick,
+                        )
+                    }
+                }
             }
             // ---- 设置页 ----
             Box(
@@ -711,55 +779,63 @@ private fun BalanceAppContent(
                         translationX = (1f - animProgress) * size.width.toFloat()
                     },
             ) {
-                SettingsScreen(
-                    apiKey = apiKey,
-                    onApiKeyChange = {
-                        apiKey = it
-                        prefs.edit().putString("api_key", it).apply()
-                    },
-                    webToken = webToken,
-                    onWebTokenChange = {
-                        webToken = it
-                        prefs.edit().putString("web_token", it).apply()
-                    },
-                    onWebLoginClick = { showWebLogin = true },
-                    onBackClick = { showSettings = false },
-                    alertEnabled = alertEnabled,
-                    onAlertEnabledChange = {
-                        alertEnabled = it
-                        prefs.edit().putBoolean("alert_enabled", it).apply()
-                    },
-                    alertThreshold = alertThreshold,
-                    onAlertThresholdChange = {
-                        alertThreshold = it
-                        prefs.edit().putString("alert_threshold", it).apply()
-                    },
-                    widgetRealtime = widgetRealtime,
-                    onWidgetRealtimeChange = {
-                        widgetRealtime = it
-                        prefs.edit().putBoolean("widget_realtime", it).apply()
-                        onRealtimeToggle(it)
-                    },
-                    widgetIntervalSec = widgetIntervalSec,
-                    onWidgetIntervalSecChange = {
-                        widgetIntervalSec = it
-                        prefs.edit().putInt("widget_interval_sec", it).apply()
-                        onRealtimeIntervalChange()
-                    },
-                    backgroundImagePath = backgroundImage,
-                    onBackgroundImageChange = {
-                        backgroundImage = it
-                        prefs.edit().putString("background_image", it).apply()
-                    },
-                    liquidGlassTuning = liquidGlassTuning,
-                    onLiquidGlassTuningChange = { liquidGlassTuning = it },
-                    onLiquidGlassTuningCommit = { tuning ->
-                        liquidGlassTuning = tuning
-                        persistLiquidGlassTuning(prefs, tuning)
-                    },
-                    navGlassTuning = navGlassTuning,
-                    onNavGlassTuningChange = { navGlassTuning = it },
-                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { settingsPageOrigin.coordinates = it }
+                ) {
+                    CompositionLocalProvider(LocalGlassSamplingOrigin provides settingsPageOrigin) {
+                        SettingsScreen(
+                            apiKey = apiKey,
+                            onApiKeyChange = {
+                                apiKey = it
+                                prefs.edit().putString("api_key", it).apply()
+                            },
+                            webToken = webToken,
+                            onWebTokenChange = {
+                                webToken = it
+                                prefs.edit().putString("web_token", it).apply()
+                            },
+                            onWebLoginClick = { showWebLogin = true },
+                            onBackClick = { showSettings = false },
+                            alertEnabled = alertEnabled,
+                            onAlertEnabledChange = {
+                                alertEnabled = it
+                                prefs.edit().putBoolean("alert_enabled", it).apply()
+                            },
+                            alertThreshold = alertThreshold,
+                            onAlertThresholdChange = {
+                                alertThreshold = it
+                                prefs.edit().putString("alert_threshold", it).apply()
+                            },
+                            widgetRealtime = widgetRealtime,
+                            onWidgetRealtimeChange = {
+                                widgetRealtime = it
+                                prefs.edit().putBoolean("widget_realtime", it).apply()
+                                onRealtimeToggle(it)
+                            },
+                            widgetIntervalSec = widgetIntervalSec,
+                            onWidgetIntervalSecChange = {
+                                widgetIntervalSec = it
+                                prefs.edit().putInt("widget_interval_sec", it).apply()
+                                onRealtimeIntervalChange()
+                            },
+                            backgroundImagePath = backgroundImage,
+                            onBackgroundImageChange = {
+                                backgroundImage = it
+                                prefs.edit().putString("background_image", it).apply()
+                            },
+                            liquidGlassTuning = liquidGlassTuning,
+                            onLiquidGlassTuningChange = { liquidGlassTuning = it },
+                            onLiquidGlassTuningCommit = { tuning ->
+                                liquidGlassTuning = tuning
+                                persistLiquidGlassTuning(prefs, tuning)
+                            },
+                            navGlassTuning = navGlassTuning,
+                            onNavGlassTuningChange = { navGlassTuning = it },
+                        )
+                    }
+                }
             }
         }
         }
@@ -855,6 +931,10 @@ private fun persistLiquidGlassTuning(
         .putFloat("liquid_glass_corner_radius", tuning.cornerRadiusDp)
         .putBoolean("liquid_glass_depth", tuning.depthEffect)
         .putBoolean("liquid_glass_vibrancy", tuning.vibrancy)
+        .putFloat("liquid_glass_adaptive", tuning.adaptiveLuminance)
+        .putBoolean("liquid_glass_adaptive_enabled", tuning.adaptiveEnabled)
+        .putFloat("liquid_glass_adaptive_bright_threshold", tuning.adaptiveThreshold)
+        .putFloat("liquid_glass_text_flip", tuning.textFlipThreshold)
         .apply()
 }
 

@@ -1,4 +1,4 @@
-package com.deepseek.balance.ui
+﻿package com.deepseek.balance.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -11,20 +11,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.layout.LayoutCoordinates
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 // 全 app 玻璃共用的 backdrop 录制层：由 MainActivity 在根层录制 AmbientBackground（环境光斑，
@@ -34,6 +34,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 val LocalLiquidCardBackdrop = staticCompositionLocalOf<Backdrop> {
     error("LiquidCard 必须在 LocalLiquidCardBackdrop 提供者内使用（MainActivity 根层已提供）")
 }
+
+/**
+ * 取样坐标系原点：由「卡片所在的页面容器」下发（渲染在滑动位移层内部）。
+ *
+ * 为什么需要：两屏切换是整页做 graphicsLayer 位移，`boundsInRoot()` 会把这段位移算进去。
+ * 于是设置页在 App 启动时位于窗口外，取样坐标被亮度图 coerce 到边缘列；切页过程中 bounds
+ * 又逐帧扫过整张壁纸 —— 自适应值只能等切完才稳定下来，观感上就是「切页后才自适应 / 切页时跳变」。
+ *
+ * 改为在页面坐标系里取矩形的意义：页面本身是全屏铺满且只在绘制阶段位移，页面坐标 == 页面停稳
+ * 后卡片所在的屏幕位置。因此每张卡在**首次布局时**就拿到了最终值，切页全程不再变化。
+ */
+internal class GlassSamplingOrigin {
+    var coordinates: LayoutCoordinates? by mutableStateOf(null)
+}
+
+internal val LocalGlassSamplingOrigin = staticCompositionLocalOf<GlassSamplingOrigin?> { null }
 
 // ============================================================================
 // 2026-09-26 恢复官方 AndroidLiquidGlass 架构（用户要求参照官方项目）：
@@ -59,17 +75,23 @@ internal fun LiquidCard(
     val tuningState = LocalLiquidGlassTuningState.current
     val darkTheme = isSystemInDarkTheme()
     val luminanceMapState = LocalBackdropLuminanceMap.current
-    val windowSize = LocalWindowInfo.current.containerSize
     val colorScheme = MaterialTheme.colorScheme
-    val luminanceTracker = remember { GlassLuminanceTracker() }
-    val sample = rememberGlassLuminanceSample(luminanceTracker)
-    val fallbackLuminance = if (isSystemInDarkTheme()) 0.1f else 0.9f
+    // 取样 + 亮度动画统一由 GlassAdaptiveState 提供（按钮/顶栏/弹窗背板共用同一套），
+    // 保证同一片背景上所有玻璃面的反应一致。
+    val adaptiveState = rememberGlassAdaptiveState()
+    val sample = rememberGlassLuminanceSample(adaptiveState.tracker)
+    val fallbackLuminance = LocalBackdropBackgroundLuminance.current
+    val contentColorTarget = glassContentColor(
+        rawLuminance = sample?.luminance ?: fallbackLuminance,
+        tuning = LocalLiquidGlassTuning.current,
+        darkTheme = darkTheme,
+    )
     val contentColor by animateColorAsState(
-        targetValue = adaptiveContentColor(sample?.luminance ?: fallbackLuminance),
+        targetValue = contentColorTarget,
         animationSpec = tween(500),
         label = "liquidGlassContentColor",
     )
-    val secondaryContentColor = contentColor.copy(alpha = 0.72f)
+    val secondaryContentColor = contentColor.copy(alpha = 0.8f)
 
     MaterialTheme(
         colorScheme = colorScheme.copy(
@@ -87,16 +109,22 @@ internal fun LiquidCard(
         ) {
             Column(
                 modifier
-                    .onGloballyPositioned { coordinates ->
-                        luminanceTracker.bounds = coordinates.boundsInRoot()
-                    }
+                    .glassAdaptiveBounds(adaptiveState)
                     .drawBackdrop(
                         backdrop = LocalLiquidCardBackdrop.current,
                         shape = { RoundedCornerShape(cornerRadius ?: tuningState.value.cornerRadiusDp.dp) },
                         effects = {
                             val t = tuningState.value
-                            if (t.vibrancy) vibrancy()
-                            blur(t.blurDp.dp.toPx())
+                            // vibrancy 与亮度自适应合并成一次 colorControls：vibrancy() 内部
+                            // 就是 colorControls(saturation = 1.5f) 的同一张色彩矩阵，
+                            // 合并后少一趟 RenderEffect 采样，观感不变。
+                            val adaptive = adaptiveState.response(t)
+                            colorControls(
+                                brightness = adaptive.brightness,
+                                contrast = adaptive.contrast,
+                                saturation = if (t.vibrancy) 1.5f else 1f,
+                            )
+                            blur(adaptive.blurDp.dp.toPx())
                             lens(
                                 t.refractionHeightDp.dp.toPx(),
                                 t.refractionAmountDp.dp.toPx(),
@@ -120,24 +148,32 @@ internal fun GlassPage(
 ) {
     val tuningState = LocalLiquidGlassTuningState.current
     val darkTheme = isSystemInDarkTheme()
+    val adaptiveState = rememberGlassAdaptiveState()
     Box(
-        modifier.drawBackdrop(
-            backdrop = LocalLiquidCardBackdrop.current,
-            shape = { RoundedCornerShape(cornerRadius) },
-            effects = {
-                val t = tuningState.value
-                if (t.vibrancy) vibrancy()
-                blur(t.blurDp.dp.toPx())
-                lens(
-                    t.refractionHeightDp.dp.toPx(),
-                    t.refractionAmountDp.dp.toPx(),
-                    chromaticAberration = t.chromaticAberration,
-                    depthEffect = t.depthEffect,
-                )
-            },
-            highlight = { liquidGlassHighlight() },
-            onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
-        )
+        modifier
+            .glassAdaptiveBounds(adaptiveState)
+            .drawBackdrop(
+                backdrop = LocalLiquidCardBackdrop.current,
+                shape = { RoundedCornerShape(cornerRadius) },
+                effects = {
+                    val t = tuningState.value
+                    val adaptive = adaptiveState.response(t)
+                    colorControls(
+                        brightness = adaptive.brightness,
+                        contrast = adaptive.contrast,
+                        saturation = if (t.vibrancy) 1.5f else 1f,
+                    )
+                    blur(adaptive.blurDp.dp.toPx())
+                    lens(
+                        t.refractionHeightDp.dp.toPx(),
+                        t.refractionAmountDp.dp.toPx(),
+                        chromaticAberration = t.chromaticAberration,
+                        depthEffect = t.depthEffect,
+                    )
+                },
+                highlight = { liquidGlassHighlight() },
+                onDrawSurface = { drawRect(liquidGlassSurfaceColorOf(tuningState.value, darkTheme)) },
+            )
     )
 }
 

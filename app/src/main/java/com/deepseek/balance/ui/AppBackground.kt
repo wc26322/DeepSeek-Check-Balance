@@ -7,8 +7,10 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -23,13 +25,29 @@ import java.io.File
 // modifier 由调用方挂 layerBackdrop(ambientBackdrop)：无论哪个分支，玻璃卡片折射的都是同一录制层。
 //
 // 位图在 MainActivity 层解码并同时用于亮度图，避免"显示解码一次、采样再解码一次"。
+//
+// 首帧必须同步拿到壁纸：路径是从 prefs 同步读出的，但解码在 IO 线程上，若等异步结果，
+// 前几帧 backgroundBitmap 为 null → 会先画默认光斑再"跳变"成壁纸。
+// 所以这里先同步解一张小图（≤320px，几毫秒），首帧即为真壁纸；全尺寸随后异步替换，
+// 观感上只剩清晰度提升。remember(路径) 保证换壁纸时立刻换成新图的预览，不会残留旧图。
+internal const val BACKGROUND_PREVIEW_MAX_DIM = 320
+private const val BACKGROUND_FULL_MAX_DIM = 2048
+
 @Composable
-internal fun rememberBackgroundBitmap(backgroundImagePath: String): State<ImageBitmap?> =
-    produceState<ImageBitmap?>(initialValue = null, backgroundImagePath) {
-        value = withContext(Dispatchers.IO) {
-            if (backgroundImagePath.isBlank()) null else decodeBackgroundBitmap(backgroundImagePath)
+internal fun rememberBackgroundBitmap(backgroundImagePath: String): State<ImageBitmap?> {
+    val preview = remember(backgroundImagePath) {
+        if (backgroundImagePath.isBlank()) null
+        else decodeBackgroundBitmap(backgroundImagePath, BACKGROUND_PREVIEW_MAX_DIM)
+    }
+    val state = remember(backgroundImagePath) { mutableStateOf(preview) }
+    LaunchedEffect(backgroundImagePath) {
+        state.value = withContext(Dispatchers.IO) {
+            if (backgroundImagePath.isBlank()) null
+            else decodeBackgroundBitmap(backgroundImagePath, BACKGROUND_FULL_MAX_DIM)
         }
     }
+    return state
+}
 
 @Composable
 internal fun AppBackground(
@@ -75,16 +93,16 @@ internal fun deleteBackgroundFile(path: String) {
     }
 }
 
-// 按长边 ≤2048px 降采样解码，避免高分辨率壁纸（4K/12K）全尺寸解码导致内存暴涨
-private fun decodeBackgroundBitmap(path: String): ImageBitmap? = try {
+// 按长边降采样解码（maxDim 决定上限），避免高分辨率壁纸（4K/12K）全尺寸解码导致内存暴涨
+private fun decodeBackgroundBitmap(path: String, maxDim: Int): ImageBitmap? = try {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(path, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
         null
     } else {
         var sample = 1
-        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
-        while (maxDim / sample > 2048) sample *= 2
+        val sourceMaxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        while (sourceMaxDim / sample > maxDim) sample *= 2
         val opts = BitmapFactory.Options().apply {
             inSampleSize = sample
             inPreferredConfig = ARGB_8888

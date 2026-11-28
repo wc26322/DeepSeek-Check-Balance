@@ -9,9 +9,15 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 internal const val LUMINANCE_MAP_COLUMNS = 32
 internal const val LUMINANCE_MAP_ROWS = 64
+
+// 细节量归一化基准：区域亮度标准差达到该值即视为"最杂乱"。
+// 注意：亮度图是 32×64 的"格子均值"，格子之间的标准差远小于逐像素标准差
+// （一张普通照片在这个尺度上通常只有 0.05~0.12），所以基准取 0.06 才有区分度。
+private const val DETAIL_STD_REFERENCE = 0.06f
 
 internal data class Rgb(
     val red: Float,
@@ -34,6 +40,11 @@ internal data class Rgb(
 internal data class LuminanceSample(
     val luminance: Float,
     val chroma: Float,
+    /**
+     * 局部细节量（0~1）：区域内亮度标准差归一化。越大表示背景越杂乱（照片、花纹），
+     * 越小表示越平（纯色、柔和渐变）。用于驱动模糊倍率——模糊只该处理"杂乱"，不该处理"亮"。
+     */
+    val detail: Float = 0f,
 )
 
 internal data class AmbientBlobSpec(
@@ -101,18 +112,24 @@ internal class BackdropLuminanceMap(
         val endRow = ceil(bottom * rows).toInt().coerceIn(startRow + 1, rows)
 
         var luminanceSum = 0f
+        var luminanceSquareSum = 0f
         var chromaSum = 0f
         var count = 0
         for (row in startRow until endRow) {
             for (column in startColumn until endColumn) {
                 val index = row * columns + column
-                luminanceSum += luminanceValues[index]
+                val value = luminanceValues[index]
+                luminanceSum += value
+                luminanceSquareSum += value * value
                 chromaSum += chromaValues[index]
                 count++
             }
         }
         if (count == 0) return LuminanceSample(0f, 0f)
-        return LuminanceSample(luminanceSum / count, chromaSum / count)
+        val mean = luminanceSum / count
+        val variance = (luminanceSquareSum / count - mean * mean).coerceAtLeast(0f)
+        val detail = (sqrt(variance) / DETAIL_STD_REFERENCE).coerceIn(0f, 1f)
+        return LuminanceSample(mean, chromaSum / count, detail)
     }
 }
 

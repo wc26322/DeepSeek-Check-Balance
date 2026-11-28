@@ -842,6 +842,10 @@ private fun NavGlassDialog(
     val cAlpha = rememberStableFloatCallback {
         onGlassTuningChange(glassTuning.copy(surfaceAlpha = it))
     }
+    val cAdaptive = rememberStableFloatCallback {
+        onGlassTuningChange(glassTuning.copy(adaptiveLuminance = it))
+    }
+
 
     val cDetent = rememberStableFloatCallback { throttledChange(tuning.copy(detentStrength = it)) }
     val cQuant = rememberStableFloatCallback { throttledChange(tuning.copy(detentQuantize = it)) }
@@ -969,7 +973,9 @@ private fun NavGlassDialog(
                     item {
                         GlassSlider(
                             label = "背景模糊半径",
-                            hint = "所有玻璃组件的背景柔化程度，默认 2dp",
+                            hint = "所有玻璃组件的背景柔化基准值，默认 4.4dp。" +
+                                "开启亮度自适应后，亮处最多放大到 1.9 倍、暗处最多收缩到 0.4 倍；" +
+                                "拉到 0 则完全不模糊",
                             value = glassTuning.blurDp,
                             valueRange = 0f..8f,
                             unit = "dp",
@@ -1133,11 +1139,16 @@ private fun GlassSliderContent(
                     Spacer(modifier = Modifier.width(2.dp))
                     InfoTip(description = hint, title = label)
                 }
-                // 实时数值：dp 或百分比
+                // 实时数值：百分比 / 倍率 / 按量程决定小数位（量程 ≤1 的刻度必然带小数，
+                // 不能用 roundToInt 显示，否则 0.55、0.70 会都显示成 "1"）
                 Text(
-                    if (unit == "%") "${(value * 100).roundToInt()}%"
-                    else if (unit == "x") "%.2f x".format(java.util.Locale.US, value)
-                    else "${value.roundToInt()} $unit",
+                    when {
+                        unit == "%" -> "${(value * 100).roundToInt()}%"
+                        unit == "x" -> "%.2f x".format(java.util.Locale.US, value)
+                        valueRange.endInclusive - valueRange.start <= 1f ->
+                            "%.2f %s".format(java.util.Locale.US, value, unit).trim()
+                        else -> "${value.roundToInt()} $unit"
+                    },
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace,
                     color = liquidSecondaryContentColor(),

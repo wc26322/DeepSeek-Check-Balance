@@ -1,4 +1,4 @@
-package com.deepseek.balance.ui
+﻿package com.deepseek.balance.ui
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -26,8 +26,8 @@ import androidx.compose.ui.util.lerp
 import com.deepseek.balance.ui.utils.InteractiveHighlight
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -54,6 +54,8 @@ fun LiquidButton(
     val animationScope = rememberCoroutineScope()
     val tuningState = LocalLiquidGlassTuningState.current
     val darkTheme = isSystemInDarkTheme()
+    // 与卡片共用同一套亮度自适应（取样 + 动画 + 响应），否则同一片背景上按钮会比卡片"更清晰"
+    val adaptiveState = rememberGlassAdaptiveState()
 
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(
@@ -63,13 +65,19 @@ fun LiquidButton(
 
     Row(
         modifier
+            .glassAdaptiveBounds(adaptiveState)
             .drawBackdrop(
                 backdrop = LocalLiquidCardBackdrop.current,
                 shape = { RoundedCornerShape(tuningState.value.cornerRadiusDp.dp) },
                 effects = {
                     val t = tuningState.value
-                    if (t.vibrancy) vibrancy()
-                    blur(t.blurDp.dp.toPx())
+                    val adaptive = adaptiveState.response(t)
+                    colorControls(
+                        brightness = adaptive.brightness,
+                        contrast = adaptive.contrast,
+                        saturation = if (t.vibrancy) 1.5f else 1f,
+                    )
+                    blur(adaptive.blurDp.dp.toPx())
                     lens(
                         t.refractionHeightDp.dp.toPx(),
                         t.refractionAmountDp.dp.toPx(),

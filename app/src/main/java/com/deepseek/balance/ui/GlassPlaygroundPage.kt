@@ -238,7 +238,7 @@ private fun GlassLabControlPanel(
             Spacer(modifier = Modifier.weight(1f))
             luminanceSample?.let { sample ->
                 Text(
-                    text = "背景亮度 ${"%.2f".format(sample.luminance)}",
+                    text = "亮度 ${"%.2f".format(sample.luminance)} 杂乱度 ${"%.2f".format(sample.detail)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = liquidSecondaryContentColor(),
                     modifier = Modifier
@@ -288,17 +288,27 @@ private fun GlassLabControlPanel(
                             framed = false,
                         )
                         GlassLabDivider()
-                        GlassSlider(
-                            label = "背景模糊",
-                            hint = "0dp 最清透；过高会降低背景细节",
-                            value = tuning.blurDp,
-                            valueRange = 0f..8f,
-                            unit = "dp",
-                            onChange = { onTuningChange(tuning.copy(blurDp = it)) },
-                            onValueChangeFinished = { onTuningCommit(tuning.copy(blurDp = it)) },
-                            modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
-                            framed = false,
-                        )
+                        if (tuning.adaptiveEnabled) {
+                            Text(
+                                text = "背景模糊由「亮度自适应」接管（2~10dp，随背景杂乱度变化）\n" +
+                                    "关闭自适应后可手动调节",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = liquidSecondaryContentColor(),
+                                modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                            )
+                        } else {
+                            GlassSlider(
+                                label = "背景模糊",
+                                hint = "0dp 最清透；过高会降低背景细节",
+                                value = tuning.blurDp,
+                                valueRange = 0f..8f,
+                                unit = "dp",
+                                onChange = { onTuningChange(tuning.copy(blurDp = it)) },
+                                onValueChangeFinished = { onTuningCommit(tuning.copy(blurDp = it)) },
+                                modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                                framed = false,
+                            )
+                        }
                         GlassLabDivider()
                         GlassSlider(
                             label = "折射高度",
@@ -353,6 +363,40 @@ private fun GlassLabControlPanel(
                             checked = tuning.vibrancy,
                             onCheckedChange = { onTuningCommit(tuning.copy(vibrancy = it)) },
                         )
+                        GlassLabDivider()
+                        GlassLabToggle(
+                            label = "亮度自适应",
+                            checked = tuning.adaptiveEnabled,
+                            onCheckedChange = { onTuningCommit(tuning.copy(adaptiveEnabled = it)) },
+                        )
+                        if (tuning.adaptiveEnabled) {
+                            GlassSlider(
+                                label = "提亮起效亮度",
+                                hint = "亮度高于此值才做极轻微提亮（最多 +8%），作为浅色背景兜底",
+                                value = tuning.adaptiveThreshold,
+                                valueRange = ADAPTIVE_MIN_BRIGHT_THRESHOLD..ADAPTIVE_MAX_BRIGHT_THRESHOLD,
+                                unit = "",
+                                onChange = { onTuningChange(tuning.copy(adaptiveThreshold = it)) },
+                                onValueChangeFinished = {
+                                    onTuningCommit(tuning.copy(adaptiveThreshold = it))
+                                },
+                                modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                                framed = false,
+                            )
+                            GlassSlider(
+                                label = "文字反转点",
+                                hint = "亮度高于此值用深色字，否则用浅色字；调高更倾向浅色字",
+                                value = tuning.textFlipThreshold,
+                                valueRange = ADAPTIVE_MIN_TEXT_FLIP..ADAPTIVE_MAX_TEXT_FLIP,
+                                unit = "",
+                                onChange = { onTuningChange(tuning.copy(textFlipThreshold = it)) },
+                                onValueChangeFinished = {
+                                    onTuningCommit(tuning.copy(textFlipThreshold = it))
+                                },
+                                modifier = Modifier.padding(horizontal = UiSpacing.Lg, vertical = UiSpacing.Md),
+                                framed = false,
+                            )
+                        }
                         if (Build.VERSION.SDK_INT < 33) {
                             Text(
                                 text = "当前系统不支持完整镜头折射与深度效果，模糊和蒙层仍可调节。",

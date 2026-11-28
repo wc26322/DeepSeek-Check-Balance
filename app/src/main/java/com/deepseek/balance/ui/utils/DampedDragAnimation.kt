@@ -31,6 +31,11 @@ class DampedDragAnimation(
     val onDragStopped: DampedDragAnimation.() -> Unit,
     // 本 app 自定义交互：把拖拽点的局部坐标传出去，供「胶囊中心跟随手指位置」用
     val onDrag: DampedDragAnimation.(position: Offset, dragAmount: Offset) -> Unit,
+    // 方向仲裁（仅列表内的横向拖拽控件开启，如 LiquidToggle）：竖直滑动让给外层滚动，
+    // 被消费时只回调 onDragCancel，未越界抬手才回调 onTap —— 取消永远不会被当成点击
+    val arbitrateHorizontalDrag: Boolean = false,
+    val onTap: DampedDragAnimation.() -> Unit = {},
+    val onDragCancel: DampedDragAnimation.() -> Unit = {},
 ) {
 
     private val valueAnimationSpec =
@@ -67,23 +72,43 @@ class DampedDragAnimation(
     val scaleY: Float get() = scaleYAnimation.value
     val velocity: Float get() = velocityAnimation.value
 
-    val modifier: Modifier = Modifier.pointerInput(Unit) {
+    val modifier: Modifier = Modifier.pointerInput(arbitrateHorizontalDrag) {
         try {
-            inspectDragGestures(
-                onDragStart = { down ->
-                    onDragStarted(down.position)
-                    press()
-                },
-                onDragEnd = {
-                    onDragStopped()
-                    release()
-                },
-                onDragCancel = {
-                    onDragStopped()
-                    release()
+            if (arbitrateHorizontalDrag) {
+                inspectHorizontalDragGestures(
+                    onPressStart = { press() },
+                    onDragStart = { down -> onDragStarted(down.position) },
+                    onDrag = { change, dragAmount -> onDrag(change.position, dragAmount) },
+                    onDragEnd = {
+                        onDragStopped()
+                        release()
+                    },
+                    onTap = {
+                        onTap()
+                        release()
+                    },
+                    onCancel = {
+                        onDragCancel()
+                        release()
+                    }
+                )
+            } else {
+                inspectDragGestures(
+                    onDragStart = { down ->
+                        onDragStarted(down.position)
+                        press()
+                    },
+                    onDragEnd = {
+                        onDragStopped()
+                        release()
+                    },
+                    onDragCancel = {
+                        onDragStopped()
+                        release()
+                    }
+                ) { change, dragAmount ->
+                    onDrag(change.position, dragAmount)
                 }
-            ) { change, dragAmount ->
-                onDrag(change.position, dragAmount)
             }
         } finally {
             release()

@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -69,7 +68,6 @@ fun LiquidToggle(
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
     val dragWidth = with(density) { 20f.dp.toPx() }
     val animationScope = rememberCoroutineScope()
-    var didDrag by remember { mutableStateOf(false) }
     // rememberUpdatedState 中转（同 BottomTabs 桥接模式）：DampedDragAnimation 的回调与
     // snapshotFlow 直接捕获参数会固化首次组合的旧 selected/onSelect —— 点击切换读到旧值、
     // 外部改状态也传不进来；须经 State 读实时值。
@@ -84,21 +82,25 @@ fun LiquidToggle(
             visibilityThreshold = 0.001f,
             initialScale = 1f,
             pressedScale = { 1.5f },
+            // 开关位于设置页 LazyColumn 内：必须开启方向仲裁。否则按住开关竖直滑动时，
+            // 列表滚动会 consume 事件 → onDragCancel → 旧逻辑把取消当点击翻转开关。
+            // 开启后：竖直先越界直接放弃（不消费，让列表滚），水平才拖拽，
+            // 只有「未越界抬手且未被消费」才走 onTap 切换。
+            arbitrateHorizontalDrag = true,
             onDragStarted = {},
+            onTap = {
+                fraction = if (currentSelected()) 0f else 1f
+                currentOnSelect(fraction == 1f)
+            },
+            onDragCancel = {
+                // 取消（竖直滑动让位/手势被抢）只回弹到当前真实状态，绝不切换
+                fraction = if (currentSelected()) 1f else 0f
+            },
             onDragStopped = {
-                if (didDrag) {
-                    fraction = if (targetValue >= 0.5f) 1f else 0f
-                    currentOnSelect(fraction == 1f)
-                    didDrag = false
-                } else {
-                    fraction = if (currentSelected()) 0f else 1f
-                    currentOnSelect(fraction == 1f)
-                }
+                fraction = if (targetValue >= 0.5f) 1f else 0f
+                currentOnSelect(fraction == 1f)
             },
             onDrag = { _, dragAmount ->
-                if (!didDrag) {
-                    didDrag = dragAmount.x != 0f
-                }
                 val delta = dragAmount.x / dragWidth
                 fraction =
                     if (isLtr) (fraction + delta).fastCoerceIn(0f, 1f)
